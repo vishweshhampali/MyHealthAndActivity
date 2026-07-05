@@ -1,0 +1,21 @@
+output_dir: data/raw
+# Start SMALL to validate. After the reconciliation check passes and the user
+# confirms, widen to "2024-01-01" (or their earliest data) for the full backfill.
+backfill_start_date: "2026-01-01"
+
+# Methods validated against the live `ghealth schema types` catalog (40 types).
+sources:
+  - { type: steps,                method: rollup,       window_size: 60s, chunk_days: 1 }
+  - { type: distance,             method: rollup,       window_size: 60s, chunk_days: 1 }
+  - { type: floors,               method: rollup,       window_size: 60s, chunk_days: 1 }   # rollupOnly
+  - { type: active-minutes,       method: rollup,       window_size: 60s, chunk_days: 1 }   # rollupOnly
+  - { type: active-energy-burned, method: rollup,       window_size: 60s, chunk_days: 1 }   # granular kcal (total-calories is daily-only)
+  - { type: total-calories,       method: daily-rollup,                   chunk_days: 14 }   # rollupOnly, daily-only — API caps this type at 14 days/request
+  - { type: exercise,             method: list,                           chunk_days: 90 }   # no rollup; list only
+
+# Optional phone-available extras — uncomment to include:
+#  - { type: activity-level,   method: list,         chunk_days: 90 }   # sedentary/light/moderate/vigorous
+#  - { type: sedentary-period, method: list,         chunk_days: 90 }
+#  - { type: altitude,         method: rollup, window_size: 60s, chunk_days: 1 }   # phone GPS/barometer
+# NOTE: HR-derived types (heart-rate, *-zone*, vo2-max, sleep, oxygen-saturation, etc.) need a
+# wearable and will be EMPTY on a phone-only account — don't add them yet.
