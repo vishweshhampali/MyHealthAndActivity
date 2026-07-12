@@ -1,0 +1,17 @@
+version: 2
+
+sources:
+  - name: raw
+    database: vishactivitytracker
+    schema: raw
+    description: >
+      Verbatim NDJSON landed by the fitness-warehouse loader (sprint1) and batch-loaded into
+      BigQuery (sprint2). One table per data type; payload is the untouched ghealth --raw object.
+    tables:
+      - name: steps
+      - name: distance
+      - name: floors
+      - name: active_minutes
+      - name: active_energy_burned
+      - name: total_calories
+      - name: exercise
