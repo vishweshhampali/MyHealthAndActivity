@@ -74,6 +74,7 @@ data type present under `data/raw/`, concatenates its files and runs one `WRITE_
 load job into `vishactivitytracker.raw.<type>`, printing a summary line per type.
 
 **Step 3 — validate.**
+
 - Confirm one summary line per data type (7 expected: steps, distance, floors, active-minutes,
   active-energy-burned, total-calories, exercise), each with a plausible file/row count.
 - Run the reconciliation query below and confirm it returns `31711` (same figure validated in

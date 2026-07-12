@@ -8,9 +8,10 @@ decisions visible to anyone landing on the repo, not just chat history.
 
 ## Goal
 
-Get dbt installed, connected to BigQuery, and structured with a real (if minimal) staging layer.
-No parsing, typing, or aggregation logic yet — that's next sprint. This sprint proves the pipe
-works: `raw.steps` in BigQuery → a dbt `source` → a trivial `stg_health__steps` view.
+Get dbt installed, connected to BigQuery, and structured with a real staging layer: one
+`stg_health__<type>` model per `raw` source, with payload fields typed out of the JSON blob, plus
+one `stg_models.yml` documenting all of them with generic tests. No aggregation or cross-source
+logic yet — that's intermediate/marts, next sprint.
 
 ## Hard rules
 
@@ -22,8 +23,9 @@ works: `raw.steps` in BigQuery → a dbt `source` → a trivial `stg_health__ste
 3. **`~/.dbt/profiles.yml` is shared across unrelated projects.** It already held a `maven_fuzzy`
    (DuckDB) profile before this sprint touched it. Only ever append a new named profile —
    never overwrite the file.
-4. **No model logic yet.** `stg_health__steps` is `select * from source(...)` — a connectivity
-   proof, not a transformation. Parsing `payload` is explicitly out of scope this sprint.
+4. **Staging models type out `payload`, nothing more.** Each `stg_health__<type>` model casts the
+   JSON fields it needs into real columns; it does not aggregate, join across sources, or dedupe.
+   That's intermediate/marts, deferred to a future sprint.
 
 ## Decisions made this sprint
 
@@ -59,7 +61,14 @@ fitness-warehouse/
         ├── models/
         │   ├── staging/
         │   │   ├── sources.yml      # declares raw.* as dbt sources
-        │   │   └── stg_health__steps.sql
+        │   │   ├── stg_models.yml   # docs + generic tests for every stg_health__* model
+        │   │   ├── stg_health__steps.sql
+        │   │   ├── stg_health__distance.sql
+        │   │   ├── stg_health__floors.sql
+        │   │   ├── stg_health__active_minutes.sql
+        │   │   ├── stg_health__active_energy_burned.sql
+        │   │   ├── stg_health__total_calories.sql
+        │   │   └── stg_health__exercise.sql
         │   ├── intermediate/.gitkeep
         │   └── marts/.gitkeep
         ├── seeds/.gitkeep
@@ -89,13 +98,23 @@ into `~/.dbt/profiles.yml`.
 passed!`.
 
 **Step 4 — build the real staging layer.** Remove `models/example/`; add `models/staging/
-sources.yml` (declares all 7 `raw` tables) and `models/staging/stg_health__steps.sql`
-(`select * from {{ source('raw','steps') }}`); add empty `models/intermediate/`,
-`models/marts/` folders for later sprints; update `dbt_project.yml`'s model config from
-`example:` to `staging:`.
+sources.yml` (declares all 7 `raw` tables); add empty `models/intermediate/`, `models/marts/`
+folders for later sprints; update `dbt_project.yml`'s model config from `example:` to `staging:`.
 
-**Step 5 — validate.** `dbt run` builds `stg_health__steps` as a view in `dbt_vish`; row count
-matches Sprint 2's `raw.steps`.
+**Step 5 — one model per source.** Add `stg_health__<type>.sql` for all 7 sources (`steps`,
+`distance`, `floors`, `active_minutes`, `active_energy_burned`, `total_calories`, `exercise`),
+each typing the JSON fields it needs out of `payload` via `JSON_VALUE`/`CAST`. Grain matches the
+source record except `active_minutes`, which unnests a per-activity-level array (one source
+record can produce >1 staged row). `total_calories` uses civil dates instead of
+start/end timestamps, since its `daily-rollup` payload has no time-of-day.
+
+**Step 6 — document and test.** Add one `stg_models.yml` covering all 7 models: a description
+each, plus generic tests (`accepted_values` on `data_type` as a parsing sanity check,
+`not_null` on the columns each model derives from `payload`).
+
+**Step 7 — validate.** `dbt run` builds all 7 as views in `dbt_vish`; `dbt test` runs all 31
+generic tests. Row counts reconcile 1:1 against their `raw.*` source, except `active_minutes`
+(1013 staged vs. 1012 raw — expected, from the activity-level unnest).
 
 ## Definition of done
 
@@ -104,17 +123,21 @@ matches Sprint 2's `raw.steps`.
 - [x] `dbt init` scaffolded `fitness-warehouse/dbt/fitness_warehouse/`.
 - [x] `~/.dbt/profiles.yml` has a working `fitness_warehouse` profile; `maven_fuzzy` untouched.
 - [x] `dbt debug` passes.
-- [x] `models/example/` removed; `models/staging/sources.yml` + `stg_health__steps.sql` added;
-      `models/intermediate/`, `models/marts/` scaffolded empty.
-- [x] `dbt run` builds `stg_health__steps` successfully.
-- [x] Row count in `dbt_vish.stg_health__steps` matches `raw.steps`.
+- [x] `models/example/` removed; `models/staging/sources.yml` added; `models/intermediate/`,
+      `models/marts/` scaffolded empty.
+- [x] `stg_health__<type>.sql` built for all 7 sources, plus `stg_models.yml` documenting and
+      testing all of them.
+- [x] `dbt run` builds all 7 staging views successfully; `dbt test` passes 31/31.
+- [x] Row counts in `dbt_vish.stg_health__*` reconcile against `raw.*` (exact match for 6 of 7;
+      `active_minutes` is 1013 vs. 1012 by design, from the activity-level unnest).
 
 ## Out of scope / next sprint
 
-- Staging models for the other 6 sources (distance, floors, active-minutes,
-  active-energy-burned, total-calories, exercise).
 - Intermediate daily-aggregation models, marts, KPI seeds/models.
 - Scheduling/automation of `dbt run`.
+- Verifying `stg_health__floors` against a real record — no floors data has landed yet on this
+  phone-only account, so that model's payload shape is inferred from `ghealth schema type floors`,
+  not observed. Re-check once floors data actually shows up.
 
 ## Troubleshooting
 

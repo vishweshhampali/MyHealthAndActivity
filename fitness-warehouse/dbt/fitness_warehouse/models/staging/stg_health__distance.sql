@@ -1,9 +1,9 @@
--- models/staging/stg_health__steps.sql
+-- models/staging/stg_health__distance.sql
 
 with source as (
 
     select *
-    from {{ source('raw', 'steps') }}
+    from {{ source('raw', 'distance') }}
 
 ),
 
@@ -18,7 +18,7 @@ parsed as (
         -- payload fields, typed
         timestamp(json_value(payload, '$.startTime')) as start_time,
         timestamp(json_value(payload, '$.endTime'))   as end_time,
-        cast(json_value(payload, '$.steps.countSum') as int64) as steps_count
+        cast(json_value(payload, '$.distance.millimetersSum') as int64) as distance_millimeters
 
     from source
 

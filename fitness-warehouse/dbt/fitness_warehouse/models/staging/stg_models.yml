@@ -1,0 +1,137 @@
+version: 2
+
+models:
+  - name: stg_health__steps
+    description: One row per steps rollup interval, with payload fields typed out.
+    columns:
+      - name: data_type
+        tests:
+          - accepted_values:
+              values: ["steps"]
+      - name: point_time
+        tests:
+          - not_null
+      - name: start_time
+        tests:
+          - not_null
+      - name: end_time
+        tests:
+          - not_null
+      - name: steps_count
+        tests:
+          - not_null
+
+  - name: stg_health__distance
+    description: One row per distance rollup interval, with payload fields typed out.
+    columns:
+      - name: data_type
+        tests:
+          - accepted_values:
+              values: ["distance"]
+      - name: point_time
+        tests:
+          - not_null
+      - name: start_time
+        tests:
+          - not_null
+      - name: end_time
+        tests:
+          - not_null
+      - name: distance_millimeters
+        tests:
+          - not_null
+
+  - name: stg_health__floors
+    description: >
+      One row per floors-climbed rollup interval. No floors data has landed yet on this
+      phone-only account, so the payload shape (and this model) is unverified against a real
+      record — see the comment in the model SQL.
+    columns:
+      - name: data_type
+        tests:
+          - accepted_values:
+              values: ["floors"]
+      - name: point_time
+        tests:
+          - not_null
+
+  - name: stg_health__active_minutes
+    description: >
+      One row per activity-level bucket per rollup interval (the source payload nests an array
+      of activity levels, so this model unnests it — one source record can produce multiple rows).
+    columns:
+      - name: data_type
+        tests:
+          - accepted_values:
+              values: ["active-minutes"]
+      - name: point_time
+        tests:
+          - not_null
+      - name: activity_level
+        tests:
+          - not_null
+      - name: active_minutes_count
+        tests:
+          - not_null
+
+  - name: stg_health__active_energy_burned
+    description: One row per active-energy-burned rollup interval, with payload fields typed out.
+    columns:
+      - name: data_type
+        tests:
+          - accepted_values:
+              values: ["active-energy-burned"]
+      - name: point_time
+        tests:
+          - not_null
+      - name: start_time
+        tests:
+          - not_null
+      - name: end_time
+        tests:
+          - not_null
+      - name: active_energy_kcal
+        tests:
+          - not_null
+
+  - name: stg_health__total_calories
+    description: >
+      One row per daily-rollup calorie total. Unlike the other rollup types, the payload carries
+      civil dates (no time-of-day), so this model has no start_time/end_time columns.
+    columns:
+      - name: data_type
+        tests:
+          - accepted_values:
+              values: ["total-calories"]
+      - name: point_time
+        tests:
+          - not_null
+      - name: civil_start_date
+        tests:
+          - not_null
+      - name: civil_end_date
+        tests:
+          - not_null
+      - name: total_calories_kcal
+        tests:
+          - not_null
+
+  - name: stg_health__exercise
+    description: One row per logged exercise session, with payload fields typed out.
+    columns:
+      - name: data_type
+        tests:
+          - accepted_values:
+              values: ["exercise"]
+      - name: point_time
+        tests:
+          - not_null
+      - name: exercise_type
+        tests:
+          - not_null
+      - name: start_time
+        tests:
+          - not_null
+      - name: end_time
+        tests:
+          - not_null
