@@ -59,10 +59,16 @@ models:
     description: >
       One row per activity-level bucket per rollup interval (the source payload nests an array
       of activity levels, so this model unnests it — one source record can produce multiple rows).
+    tests:
+      - dbt_utils.unique_combination_of_columns:
+          combination_of_columns:
+            - point_time
+            - activity_level
     columns:
       - name: data_type
         tests:
-          - accepted_values:
+        - accepted_values:
+            arguments:
               values: ["active-minutes"]
       - name: point_time
         tests:
@@ -125,6 +131,11 @@ models:
               values: ["exercise"]
       - name: point_time
         tests:
+          - not_null
+      - name: data_point_name
+        description: Full Google Fit resource path — the true unique identifier for a session.
+        tests:
+          - unique
           - not_null
       - name: exercise_type
         tests:
