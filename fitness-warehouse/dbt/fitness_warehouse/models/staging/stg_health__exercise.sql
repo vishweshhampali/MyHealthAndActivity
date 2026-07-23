@@ -15,10 +15,10 @@ parsed as (
         point_time,
         ingested_at,
 
-        -- payload fields, typed
         json_value(payload, '$.name') as data_point_name,
         json_value(payload, '$.exercise.displayName') as exercise_name,
         json_value(payload, '$.exercise.exerciseType') as exercise_type,
+        json_value(payload, '$.dataSource.recordingMethod') as recording_method,
         timestamp(json_value(payload, '$.exercise.interval.startTime')) as start_time,
         timestamp(json_value(payload, '$.exercise.interval.endTime'))   as end_time,
         cast(

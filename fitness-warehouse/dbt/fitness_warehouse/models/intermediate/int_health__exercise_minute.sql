@@ -5,6 +5,7 @@ with sessions as (
     select
         data_point_name as session_id,
         exercise_type,
+        recording_method,
         start_time,
         end_time,
         distance_millimeters as session_distance_millimeters
@@ -18,9 +19,17 @@ exploded as (
     select
         session_id,
         exercise_type,
+        recording_method,
         session_distance_millimeters,
         minute,
-        count(*) over (partition by session_id) as minutes_in_session
+        count(*) over (partition by session_id) as minutes_in_session,
+
+        -- explicit tracking (manual entry or GPS-active recording) outranks
+        -- passive auto-detection for overlapping minutes
+        case
+            when recording_method = 'PASSIVELY_MEASURED' then 2
+            else 1
+        end as recording_priority
 
     from sessions,
     unnest(generate_timestamp_array(
@@ -29,18 +38,28 @@ exploded as (
         interval 1 minute
     )) as minute
 
+),
+
+resolved as (
+
+    select *
+    from exploded
+    qualify row_number() over (
+        partition by minute
+        order by recording_priority asc, session_id
+    ) = 1
+
 )
 
 select
     minute,
     session_id,
     exercise_type,
-    -- spread the session's total distance evenly across its minutes,
-    -- only when the session actually recorded a distance (e.g. not strength training)
+    recording_method,
     case
         when session_distance_millimeters is not null
             then session_distance_millimeters / minutes_in_session
         else null
     end as exercise_distance_millimeters
 
-from exploded
+from resolved

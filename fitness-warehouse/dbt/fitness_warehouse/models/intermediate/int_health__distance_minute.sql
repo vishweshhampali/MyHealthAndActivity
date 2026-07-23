@@ -4,15 +4,27 @@ with spine as (
     select * from {{ ref('int_health__minute_spine') }}
 ),
 
-distance as (
+passive_distance as (
     select
         point_time as minute,
-        distance_millimeters
+        distance_millimeters as passive_distance_millimeters
     from {{ ref('stg_health__distance') }}
+),
+
+exercise_distance as (
+    select
+        minute,
+        exercise_distance_millimeters
+    from {{ ref('int_health__exercise_minute') }}
 )
 
 select
     spine.minute,
-    coalesce(distance.distance_millimeters, 0) as distance_millimeters
+    coalesce(
+        exercise_distance.exercise_distance_millimeters,
+        passive_distance.passive_distance_millimeters,
+        0
+    ) as distance_millimeters
 from spine
-left join distance on spine.minute = distance.minute
+left join passive_distance on spine.minute = passive_distance.minute
+left join exercise_distance on spine.minute = exercise_distance.minute

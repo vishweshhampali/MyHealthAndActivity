@@ -58,7 +58,8 @@ models:
   - name: stg_health__active_minutes
     description: >
       One row per activity-level bucket per rollup interval (the source payload nests an array
-      of activity levels, so this model unnests it — one source record can produce multiple rows).
+      of activity levels, so this model unnests it — one source record can produce multiple rows,
+      including genuinely mixed-level minutes confirmed in real data).
     tests:
       - dbt_utils.unique_combination_of_columns:
           combination_of_columns:
@@ -129,6 +130,16 @@ models:
         tests:
           - accepted_values:
               values: ["exercise"]
+      - name: recording_method
+        description: >
+          How this session was captured — PASSIVELY_MEASURED (auto-detected),
+          MANUAL (hand-logged), or ACTIVELY_MEASURED (GPS-tracked, e.g. Strava).
+          Used to resolve overlapping sessions: non-passive beats passive.
+        tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: ["PASSIVELY_MEASURED", "MANUAL", "ACTIVELY_MEASURED"]
       - name: point_time
         tests:
           - not_null

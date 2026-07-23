@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: fct_activity_minute
+    description: >
+      One row per minute across the full tracked history (from int_health__minute_spine).
+      Combines steps, distance, active energy, and active-minutes-by-level from passive
+      sensor data, with exercise sessions overriding distance and providing activity
+      context (exercise_type, recording_method) for minutes they cover. Manually/actively
+      recorded sessions (MANUAL, ACTIVELY_MEASURED) take priority over passively detected
+      ones for any overlapping minutes. steps_count, distance_millimeters, active_energy_kcal,
+      light_minutes, moderate_minutes, and vigorous_minutes default to 0 when no data exists
+      for that minute; exercise_type, exercise_session_id, and recording_method are null
+      when no session covers that minute (no fabricated "not exercising" value).
+    columns:
+      - name: minute
+        description: The minute this row represents, UTC, from the minute spine.
+        tests:
+          - not_null
+          - unique
+
+      - name: steps_count
+        description: Steps in this minute, from the passive step sensor. Always passive, never overridden by exercise sessions.
+        tests:
+          - not_null
+
+      - name: distance_millimeters
+        description: >
+          Distance in this minute. Defaults to the passive distance sensor; overridden by
+          an exercise session's own distance when the session covers this minute AND reports
+          a distance value (e.g. RUNNING via Strava). Sessions without distance data
+          (e.g. STRENGTH_TRAINING) do not override — passive distance is used instead.
+        tests:
+          - not_null
+
+      - name: active_energy_kcal
+        description: Active energy burned in this minute, from the passive energy sensor.
+        tests:
+          - not_null
+
+      - name: light_minutes
+        description: 1 if this minute was recorded as LIGHT activity level, else 0.
+        tests:
+          - not_null
+
+      - name: moderate_minutes
+        description: 1 if this minute was recorded as MODERATE activity level, else 0.
+        tests:
+          - not_null
+
+      - name: vigorous_minutes
+        description: 1 if this minute was recorded as VIGOROUS activity level, else 0.
+        tests:
+          - not_null
+
+      - name: exercise_session_id
+        description: >
+          Google Fit resource path identifying the exercise session covering this minute,
+          if any. Null when no session covers this minute. When sessions overlap, this
+          reflects the higher-priority session (non-passive beats passive).
+
+      - name: exercise_type
+        description: Type of exercise session covering this minute (e.g. RUNNING, STRENGTH_TRAINING, WALKING), or null if none.
+
+      - name: recording_method
+        description: How the covering exercise session was recorded — PASSIVELY_MEASURED, MANUAL, or ACTIVELY_MEASURED — or null if no session covers this minute.
