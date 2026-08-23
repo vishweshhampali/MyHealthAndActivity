@@ -16,7 +16,7 @@ def _find_existing_page(token: str, database_id: str, date_str: str) -> str | No
     resp = requests.post(
         f"{NOTION_API}/databases/{database_id}/query",
         headers=_headers(token),
-        json={"filter": {"property": "Date", "date": {"equals": date_str}}},
+        json={"filter": {"property": "Date", "title": {"equals": date_str}}},
         timeout=15,
     )
     resp.raise_for_status()
