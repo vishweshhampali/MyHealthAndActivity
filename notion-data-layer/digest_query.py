@@ -44,11 +44,13 @@ streak_calc AS (
     SUM(CASE WHEN trained THEN 0 ELSE 1 END) OVER (ORDER BY activity_date) AS break_group
   FROM filled
 ),
+target_break_group AS (
+  SELECT break_group FROM streak_calc WHERE activity_date = @landing_date
+),
 current_streak AS (
   SELECT COUNT(*) AS streak_len
-  FROM streak_calc
-  WHERE trained
-    AND break_group = (SELECT break_group FROM streak_calc WHERE activity_date = @landing_date)
+  FROM streak_calc, target_break_group
+  WHERE streak_calc.trained AND streak_calc.break_group = target_break_group.break_group
 ),
 last_trained AS (
   SELECT MAX(activity_date) AS last_trained_date
@@ -77,12 +79,16 @@ SELECT
   f.total_active_minutes,
   ROUND(f.distance_km, 2) AS distance_km,
   f.exercise_session_count,
-  (SELECT streak_len FROM current_streak) AS current_streak_days,
-  DATE_DIFF(@landing_date, (SELECT last_trained_date FROM last_trained), DAY) AS days_since_last_session,
-  (SELECT deliberate_days_this_week FROM weekly) AS deliberate_days_this_week,
-  (SELECT minutes_7d FROM rolling) AS minutes_last_7d,
-  (SELECT minutes_28d FROM rolling) AS minutes_last_28d,
-  SAFE_DIVIDE((SELECT minutes_7d FROM rolling) / 7, (SELECT minutes_28d FROM rolling) / 28) AS acwr_ratio
+  cs.streak_len AS current_streak_days,
+  DATE_DIFF(@landing_date, lt.last_trained_date, DAY) AS days_since_last_session,
+  w.deliberate_days_this_week,
+  r.minutes_7d AS minutes_last_7d,
+  r.minutes_28d AS minutes_last_28d,
+  SAFE_DIVIDE(r.minutes_7d / 7, r.minutes_28d / 28) AS acwr_ratio
 FROM filled f
+CROSS JOIN current_streak cs
+CROSS JOIN last_trained lt
+CROSS JOIN weekly w
+CROSS JOIN rolling r
 WHERE f.activity_date = @landing_date
 """
