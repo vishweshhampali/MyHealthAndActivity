@@ -130,6 +130,7 @@ models:
         tests:
           - accepted_values:
               values: ["exercise"]
+     
       - name: recording_method
         description: >
           How this session was captured — PASSIVELY_MEASURED (auto-detected),
@@ -151,6 +152,9 @@ models:
       - name: exercise_type
         tests:
           - not_null
+          - relationships:
+              to: ref('exercise_category_map')
+              field: exercise_type
       - name: start_time
         tests:
           - not_null

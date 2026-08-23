@@ -1,6 +1,5 @@
-output_dir: data/raw
-# Start SMALL to validate. After the reconciliation check passes and the user
-# confirms, widen to "2024-01-01" (or their earliest data) for the full backfill.
+# Only used when a raw.<type> table is empty or missing (first load, or a full reset).
+# Otherwise sync.py resumes from the latest point_time already in BigQuery.
 backfill_start_date: "2026-01-01"
 
 # Methods validated against the live `ghealth schema types` catalog (40 types).

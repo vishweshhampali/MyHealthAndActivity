@@ -37,7 +37,8 @@ select
 
     exercise.session_id as exercise_session_id,
     exercise.exercise_type,
-    exercise.recording_method
+    exercise.recording_method,
+    exercise.exercise_category
 
 from spine
 left join steps           on spine.minute = steps.minute

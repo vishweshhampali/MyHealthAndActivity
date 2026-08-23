@@ -1,6 +1,13 @@
 version: 2
 
 models:
+  - name: fct_activity_daily
+    description: One row per day, aggregated from fct_activity_minute, with total_calories_kcal joined in from the daily-only source.
+    columns:
+      - name: activity_date
+        tests:
+          - not_null
+          - unique
   - name: fct_activity_minute
     description: >
       One row per minute across the full tracked history (from int_health__minute_spine).
@@ -23,6 +30,13 @@ models:
         description: Steps in this minute, from the passive step sensor. Always passive, never overridden by exercise sessions.
         tests:
           - not_null
+      
+      - name: exercise_type
+        tests:
+          - not_null
+          - relationships:
+              to: ref('exercise_category_map')
+              field: exercise_type
 
       - name: distance_millimeters
         description: >

@@ -3,14 +3,17 @@
 with sessions as (
 
     select
-        data_point_name as session_id,
-        exercise_type,
-        recording_method,
-        start_time,
-        end_time,
-        distance_millimeters as session_distance_millimeters
+        e.data_point_name as session_id,
+        e.exercise_type,
+        e.recording_method,
+        e.start_time,
+        e.end_time,
+        e.distance_millimeters as session_distance_millimeters,
+        m.exercise_category
 
-    from {{ ref('stg_health__exercise') }}
+    from {{ ref('stg_health__exercise') }} e
+    left join {{ ref('exercise_category_map') }} m
+        on e.exercise_type = m.exercise_type
 
 ),
 
@@ -20,12 +23,11 @@ exploded as (
         session_id,
         exercise_type,
         recording_method,
+        exercise_category,
         session_distance_millimeters,
         minute,
         count(*) over (partition by session_id) as minutes_in_session,
 
-        -- explicit tracking (manual entry or GPS-active recording) outranks
-        -- passive auto-detection for overlapping minutes
         case
             when recording_method = 'PASSIVELY_MEASURED' then 2
             else 1
@@ -56,6 +58,7 @@ select
     session_id,
     exercise_type,
     recording_method,
+    exercise_category,
     case
         when session_distance_millimeters is not null
             then session_distance_millimeters / minutes_in_session
