@@ -12,6 +12,12 @@ def _headers(token: str) -> dict:
     }
 
 
+def _raise_with_body(resp: requests.Response):
+    if not resp.ok:
+        print(f"Notion API error {resp.status_code}: {resp.text}")
+    resp.raise_for_status()
+
+
 def _find_existing_page(token: str, database_id: str, date_str: str) -> str | None:
     resp = requests.post(
         f"{NOTION_API}/databases/{database_id}/query",
@@ -19,7 +25,7 @@ def _find_existing_page(token: str, database_id: str, date_str: str) -> str | No
         json={"filter": {"property": "Date", "title": {"equals": date_str}}},
         timeout=15,
     )
-    resp.raise_for_status()
+    _raise_with_body(resp)
     results = resp.json().get("results", [])
     return results[0]["id"] if results else None
 
@@ -69,5 +75,5 @@ def upsert_day(token: str, database_id: str, row: dict):
             json={"parent": {"database_id": database_id}, "properties": properties},
             timeout=15,
         )
-    resp.raise_for_status()
+    _raise_with_body(resp)
     return resp.json()
