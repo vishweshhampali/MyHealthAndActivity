@@ -18,6 +18,9 @@ on:
 jobs:
   sync:
     runs-on: ubuntu-latest
+    concurrency:
+      group: notion-data-layer-sync
+      cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
 
