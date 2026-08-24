@@ -8,6 +8,12 @@ on:
       date:
         description: 'Specific date to sync (YYYY-MM-DD) — leave blank for yesterday'
         required: false
+      start_date:
+        description: 'Backfill start date (YYYY-MM-DD) — leave blank unless backfilling'
+        required: false
+      end_date:
+        description: 'Backfill end date (YYYY-MM-DD) — leave blank unless backfilling'
+        required: false
 
 jobs:
   sync:
@@ -34,4 +40,6 @@ jobs:
           NOTION_DATABASE_ID: ${{ vars.NOTION_DATABASE_ID }}
           NOTION_API_TOKEN: ${{ secrets.NOTION_TOKEN }}
           SYNC_DATE: ${{ github.event.inputs.date }}
+          SYNC_START_DATE: ${{ github.event.inputs.start_date }}
+          SYNC_END_DATE: ${{ github.event.inputs.end_date }}
         run: python sync.py
