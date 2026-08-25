@@ -45,5 +45,8 @@ jobs:
       - name: check whether the token rotated
         run: |
           ghealth auth export > /tmp/creds-after.json
-          diff -q /tmp/ghealth-creds.json /tmp/creds-after.json `
-            && echo "token unchanged" || echo "token rotated -- write-back needed"
+          if diff -q /tmp/ghealth-creds.json /tmp/creds-after.json > /dev/null; then
+            echo "token unchanged"
+          else
+            echo "token rotated -- write-back needed"
+          fi
