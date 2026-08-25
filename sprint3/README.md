@@ -50,8 +50,8 @@ Adds a `dbt/` subtree to the existing `fitness-warehouse/` project:
 
 ```
 fitness-warehouse/
-├── loader/                          # Sprint 1 + 2
-├── data/raw/<type>/*.ndjson         # Sprint 1
+├── loader/                          # Sprint 1 + 2 (rearchitected 2026-08-23 into sync.py —
+│                                     #   see loader/README.md; no longer writes data/raw/*.ndjson)
 ├── requirements.txt                 # Sprint 1 + 2 (loader's venv)
 └── dbt/
     ├── .venv/                       # Sprint 3 — dbt's own venv, gitignored

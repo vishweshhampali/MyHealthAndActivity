@@ -1,7 +1,11 @@
 # Sprint 1 — Local Fitness Data Loader (ghealth → NDJSON files)
 
-Status: **Built, validated, and backfilled (2026-07-05).** Steps 0–4 complete: small-range pull,
-reconciliation, resumability, and a widened backfill to `2026-01-01` all passed.
+Status: **Built and validated as an Extract-only stage (2026-07-05); superseded 2026-08-23.** The
+file-based design below (`load.py` + `sink_files.py`, writing NDJSON to `data/raw/`) was replaced
+when the loader was rearchitected to extract from `ghealth` and load into BigQuery in the same
+step — see `fitness-warehouse/loader/README.md` for how the loader actually works today. This
+document is kept for the Extract-side decisions and rules that are still honored by the current
+`sync.py`, and as a record of what Sprint 1 actually built and validated at the time.
 
 **Loader enhancement made during Step 4:** the original resume logic (`last_chunk_end` only)
 assumed backfill dates only ever move forward. Widening `backfill_start_date` to an earlier date
@@ -9,7 +13,9 @@ than what was already on disk would have silently no-opped (every source would r
 date" without pulling the older gap). Added `first_chunk_start` in `sink_files.py` and updated
 `load.py` to fill both a backward gap (config start → earliest chunk on disk) and a forward gap
 (latest chunk on disk → today) per source, so widening the backfill after an initial validation
-window actually works as intended.
+window actually worked as intended. (The equivalent backward/forward-gap logic in the current
+`sync.py` is BigQuery-based: `latest_date()` + `synced_through()` instead of filename parsing —
+see `loader/README.md`.)
 
 **Post-Step-4 addition: per-run logging.** Added `loader/run_log.py`, which configures a logger
 that writes every run's output to both the console (unchanged) and a timestamped file at
@@ -17,7 +23,8 @@ that writes every run's output to both the console (unchanged) and a timestamped
 existing per-chunk write lines and "up to date" lines, a new debug line per source showing the
 computed backward/forward `ranges to fill` (previously invisible, making the resume logic hard to
 debug), a per-source `done: N chunks, M points` line, and a final run summary (start/end time,
-duration, total chunks/points written).
+duration, total chunks/points written). `run_log.py` is unchanged by the later rearchitecture and
+is still used as-is by `sync.py`.
 
 This document is the sprint plan for the Extract step of the fitness data pipeline: pull personal
 fitness data from the Google Health API via the local `ghealth` CLI and land it verbatim as local
@@ -27,11 +34,17 @@ config lives here.
 
 ## Goal
 
-Extract-only. No warehouse, database, cloud auth, or scheduling in this sprint — a warehouse
-(BigQuery or DuckDB) will be chosen later. NDJSON keeps both options open. This is the Extract
-step of an ELT pipeline; all transformation happens later in dbt, never here.
+Extract-only, at the time this sprint was built. No warehouse, database, cloud auth, or scheduling
+in this sprint — a warehouse (BigQuery or DuckDB) was chosen in Sprint 2, and by 2026-08-23 the
+Extract and Load steps described in Sprints 1–2 had been merged into a single script (`sync.py`)
+that reads from `ghealth` and appends straight into BigQuery per chunk, with no NDJSON files on
+disk at all. This section describes the original, file-based scope as it was actually built and
+validated in Sprint 1.
 
 ## Hard rules (do not violate)
+
+Still enforced by the current `sync.py` / `ghealth_client.py` / `records.py`, even though the
+on-disk mechanics changed:
 
 1. **Verbatim raw.** Always call ghealth with `--raw`. Store each returned data point object
    untouched inside a `payload` field. Never rename, convert units, or reshape it.
@@ -42,10 +55,12 @@ step of an ELT pipeline; all transformation happens later in dbt, never here.
    in the loader.
 4. **Missing days ≠ zeros.** If a date returns no points, it is simply absent. Never fabricate
    0-value rows.
-5. **Idempotent + resumable.** One NDJSON file per (type, chunk); re-running overwrites that file.
-   Resume from whatever chunks already exist on disk.
-6. **No secrets in git.** `data/` and any credentials are gitignored. ghealth owns auth; do not
-   write auth code.
+5. **Idempotent + resumable.** Originally: one NDJSON file per (type, chunk); re-running
+   overwrites that file, resuming from whatever chunks already exist on disk. Now: `sync.py`
+   resumes from the latest `point_time` already loaded into BigQuery (or `_sync_state` for
+   zero-point types) instead of parsing filenames — same idempotency guarantee, different
+   mechanism.
+6. **No secrets in git.** Credentials are gitignored. ghealth owns auth; do not write auth code.
 7. **Do not auto-run the full multi-year backfill.** Validate on a small recent range first, and
    stop for human confirmation before widening.
 
@@ -64,6 +79,7 @@ Before committing to the original draft spec, its assumptions were checked again
   `"requested range is 91 days; the API caps total-calories rollups at 14 days per request"`.
   The original draft used `chunk_days: 90` for this source, which would have passed the small
   Step 3 validation window but broken the moment the backfill widened. Fixed to `chunk_days: 14`.
+  This cap and fix are still reflected in `config.yaml` today.
 - **Minor correction:** an earlier note referenced `spo2` as an example wearable-only type; the
   real registry ID is `oxygen-saturation` (no `spo2` exists in `ghealth schema types`).
 
@@ -74,10 +90,7 @@ Two Agent Skills from the `google-health-cli` repo are installed at
 prerequisites (auth, setup, global flags) and full coverage of all 40 data types/operations. They
 were copied from the local `google-health-cli/skills/` checkout, so no Node.js/npx was needed.
 
-## Planned file layout (next sprint step — not yet created)
-
-Matches the original spec's project root exactly (`fitness-warehouse/`), independent of where
-this planning doc lives:
+## File layout as originally built (Sprint 1 — since superseded)
 
 ```
 fitness-warehouse/
@@ -87,12 +100,17 @@ fitness-warehouse/
 ├── loader/
 │   ├── __init__.py
 │   ├── ghealth_client.py
-│   ├── sink_files.py
-│   └── load.py
-└── data/raw/            # created at runtime, gitignored
+│   ├── sink_files.py       # removed 2026-08-23
+│   └── load.py             # renamed to sync.py 2026-08-23, rewritten to write BigQuery directly
+└── data/raw/                # created at runtime, gitignored — no longer written; removed 2026-08-23
 ```
 
+For the current layout (`sync.py`, `records.py`, `to_bigquery.py`, `run_log.py`, no `data/raw/`),
+see `fitness-warehouse/loader/README.md`.
+
 ### Sources (final, corrected)
+
+Unchanged since this sprint — still exactly what `config.yaml` runs today:
 
 | type | method | window_size | chunk_days | note |
 |---|---|---|---|---|
@@ -109,7 +127,7 @@ Optional phone-available extras (not enabled yet): `activity-level` (list), `sed
 `oxygen-saturation`, etc.) need a wearable and will be empty on a phone-only account — do not add
 them yet.
 
-## Step-by-step plan
+## Step-by-step plan (as run in Sprint 1 — commands are historical)
 
 **Step 0 — verify prerequisites.** Run
 `ghealth data steps daily-rollup --from 2026-06-30 --to 2026-06-30` and confirm a data point with
@@ -118,38 +136,40 @@ them yet.
 **Step 1 — create project files** per the layout above.
 
 **Step 2 — install & first run (small range).** `pip install -r requirements.txt`, then
-`python loader/load.py`. With `backfill_start_date: "2026-06-24"` this pulls ~1 week; confirm
-files appear under `data/raw/steps/`, `data/raw/exercise/`, etc.
+`python loader/load.py`. With `backfill_start_date: "2026-06-24"` this pulled ~1 week; confirmed
+files appeared under `data/raw/steps/`, `data/raw/exercise/`, etc. (Today: `python loader/sync.py`
+loads the same range straight into BigQuery — no local files.)
 
 **Step 3 — validate (must pass before widening).**
-- Inspect a written file — each line must have `data_type`, `point_time`, and a verbatim `payload`.
-- Reconciliation: sum `payload.steps.countSum` across all per-minute buckets for 2026-06-30 and
-  confirm it equals `31711` (the Step 0 daily total). A short sum suggests dropped pagination or
-  too large a chunk.
-- **Stop here and report results before widening the backfill.**
+- Inspected a written file — each line had `data_type`, `point_time`, and a verbatim `payload`.
+- Reconciliation: summed `payload.steps.countSum` across all per-minute buckets for 2026-06-30 and
+  confirmed it equals `31711` (the Step 0 daily total). A short sum would suggest dropped
+  pagination or too large a chunk. (The same reconciliation query, now run against
+  `raw.steps` in BigQuery, is documented in `sprint2/README.md`.)
 
 **Step 4 — widen the backfill (only after confirming Step 3).** Set `backfill_start_date` to the
-earliest available date (e.g. `2024-01-01`) and re-run `python loader/load.py`; it resumes from
-existing files and only pulls new chunks. Per-minute grain at `chunk_days: 1` means one API call
-per metric per day — a multi-year backfill is thousands of calls. Once a real day is confirmed to
-return well under 1,440 buckets, `chunk_days` for the 60s metrics may be raised (e.g. to 7) to
-reduce call count.
+earliest available date (e.g. `2024-01-01`) and re-ran; it resumed from existing files and only
+pulled new chunks. Per-minute grain at `chunk_days: 1` means one API call per metric per day — a
+multi-year backfill is thousands of calls. Once a real day is confirmed to return well under 1,440
+buckets, `chunk_days` for the 60s metrics may be raised (e.g. to 7) to reduce call count.
 
 ## Definition of done
 
 - [x] Project files created per the layout above (at `fitness-warehouse/`); `pip install` succeeds.
-- [x] `python loader/load.py` writes NDJSON under `data/raw/<type>/` for all 7 sources.
-- [x] Lines contain verbatim `payload` + keying metadata.
-- [x] June 30 per-minute step buckets sum to 31711.
-- [x] Re-running resumes without re-pulling existing chunks (confirmed: all sources "up to date").
-- [x] No warehouse/DB/cloud code added; `data/` is gitignored.
+- [x] `python loader/load.py` wrote NDJSON under `data/raw/<type>/` for all 7 sources.
+- [x] Lines contained verbatim `payload` + keying metadata.
+- [x] June 30 per-minute step buckets summed to 31711.
+- [x] Re-running resumed without re-pulling existing chunks (confirmed: all sources "up to date").
+- [x] No warehouse/DB/cloud code added; `data/` was gitignored.
 - [x] Backfill widened to `2026-01-01` (186 daily files for the five per-minute types, 14
-      total-calories files, 3 exercise files); re-run confirms all sources "up to date".
+      total-calories files, 3 exercise files); re-run confirmed all sources "up to date".
+- [x] (2026-08-23) Extract and Load steps merged into `loader/sync.py`; `data/raw/` and
+      `sink_files.py` removed. See `fitness-warehouse/loader/README.md`.
 
 ## Troubleshooting
 
 - **Auth (exit 2):** `ghealth auth login`.
-- **Empty file for a metric:** expected for wearable-only types on a phone (heart-rate, sleep,
+- **Empty result for a metric:** expected for wearable-only types on a phone (heart-rate, sleep,
   etc.) — those aren't in `sources`. For configured types, an empty result means no data that day
   (not an error).
 - **`rollup` rejects the range:** window×span exceeds the API cap — lower `chunk_days`.
