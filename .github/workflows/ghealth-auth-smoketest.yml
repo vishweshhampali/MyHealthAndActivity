@@ -1,4 +1,4 @@
-﻿name: ghealth-auth-smoketest
+name: ghealth-auth-smoketest
 on:
   workflow_dispatch: {}
 
