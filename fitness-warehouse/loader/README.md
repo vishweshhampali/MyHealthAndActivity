@@ -1,33 +1,35 @@
 # Loader — how it runs
 
-Entry point: `python loader/load.py`. Everything else here is imported by it.
+Entry point: `python loader/sync.py` (run from anywhere — it locates `config.yaml` relative to
+itself). Everything else here is imported by it. There's no intermediate file storage: each run
+reads from the `ghealth` CLI and appends straight into BigQuery `raw.*` tables.
 
-## `load.py` — orchestrator
+## `sync.py` — orchestrator
 
 Runs once per invocation:
 
-1. **Setup (module level).** Adds this directory to `sys.path`, imports `read`/`chunks`/`point_time`
-   from `ghealth_client.py` and `write_chunk`/`last_chunk_end`/`first_chunk_start` from
-   `sink_files.py`. Loads `../config.yaml` into `cfg`, resolves `out = ../data/raw`, and reads
-   today's date.
+1. **Setup (module level).** Adds this directory to `sys.path`, loads `../config.yaml` into
+   `cfg`, sets up a logger via `run_log.setup()` writing to `../logs/run_<timestamp>.log`.
 
 2. **`main()`**, for each source listed in `config.yaml` (steps, distance, floors,
    active-minutes, active-energy-burned, total-calories, exercise):
    - Reads that source's `type`, `method`, `window_size`, `chunk_days`.
-   - Calls `first_chunk_start()` and `last_chunk_end()` to see what's already on disk for this
-     type, by parsing dates out of existing filenames under `data/raw/<type>/`.
-   - Works out what date ranges are missing:
-     - Nothing on disk yet → pull everything from `backfill_start_date` to today.
-     - Something on disk → check for a **backward gap** (config start date earlier than the
-       earliest file on disk) and a **forward gap** (today later than the latest file on disk).
-       Either, both, or neither can apply.
-   - If nothing's missing: prints `"<type> up to date"` and moves on.
-   - Otherwise: splits each missing range into `chunk_days`-sized windows via `chunks()`, and for
-     each chunk calls `read()` to fetch the data and `write_chunk()` to save it, printing a line
-     like:
+   - Calls `latest_date()` (max `point_time` already in `raw.<type>`) and `synced_through()`
+     (last date recorded in `_sync_state`, in case a type has zero data points and never
+     advances `latest_date`) to find where to resume from.
+   - `range_start` = the later of those two, plus one day — or `backfill_start_date` from
+     `config.yaml` if the table is empty/missing and no sync state exists yet.
+   - If `range_start` is already past today: logs `"<type> up to date"` and moves on.
+   - Otherwise: splits `[range_start, today]` into `chunk_days`-sized windows via `chunks()`,
+     and for each chunk calls `read()` to fetch the data, `build_ndjson()` to encode it, and
+     `append_points()` to load it into BigQuery, logging a line like:
      ```
-     steps  2026-06-24..2026-06-24:  1440 -> data/raw/steps/rollup_2026-06-24_2026-06-24.ndjson
+     steps          2026-06-24..2026-06-24:  1440 -> raw.steps
      ```
+   - After all chunks for a source, calls `write_sync_state()` once to record `synced_through =
+     today` for that type (not per chunk — the state table is rewritten in full each time, since
+     this project's BigQuery free tier blocks DML/MERGE).
+   - Logs a run summary (duration, sources, total chunks, total points) at the end.
 
 ## `ghealth_client.py` — talks to the CLI
 
@@ -45,21 +47,40 @@ Runs once per invocation:
   daily-rollup's `civilStartTime`, etc.), used only as a keying/sort field — never touches the
   actual `payload`.
 
-## `sink_files.py` — talks to disk
+## `records.py` — builds the payload
 
-- `write_chunk(...)` — writes one `.ndjson` file named `<method>_<c0>_<c1>.ndjson` under
-  `data/raw/<type>/`, one JSON line per point:
+- `build_ndjson(data_type, method, points, point_time_fn)` — encodes each point as one JSON line:
   `{data_type, method, point_time, ingested_at, payload}`, where `payload` is the untouched
-  object returned by the API.
-- `last_chunk_end(...)` / `first_chunk_start(...)` — scan existing filenames in
-  `data/raw/<type>/` and parse out the max end-date / min start-date already covered. This is how
-  `load.py` knows what's already done vs. what's missing.
+  object returned by the API. Returns the whole batch as in-memory NDJSON bytes, ready for a
+  BigQuery load job.
+
+## `to_bigquery.py` — talks to BigQuery
+
+Auth via Application Default Credentials only. Project is `vishactivitytracker`, dataset `raw`.
+
+- `latest_date(client, data_type)` — `max(date(point_time))` already loaded for this type, or
+  `None` if the table is empty/missing.
+- `read_sync_state(client)` / `synced_through(client, data_type)` — read the `_sync_state` table
+  (`{data_type: synced_through}`), or `{}`/`None` if it doesn't exist yet.
+- `write_sync_state(client, data_type, through_date)` — rewrites the whole `_sync_state` table
+  (load job with `WRITE_TRUNCATE`, not `MERGE`/`UPDATE` — DML is blocked on this project's free
+  tier) with this type's `through_date` updated.
+- `append_points(client, data_type, ndjson_bytes)` — loads an NDJSON buffer into
+  `raw.<type>` (table name is `data_type` with `-` replaced by `_`), creating the table on first
+  load. No-ops if `ndjson_bytes` is empty.
+
+## `run_log.py` — logging setup
+
+- `setup(logs_dir)` — creates `logs_dir` if needed, returns a logger that writes to both the
+  console and a timestamped `run_<timestamp>.log` file.
 
 ## Dependency chain
 
 ```
-load.py (orchestrator)
+sync.py (orchestrator)
   ├── ghealth_client.py  (fetch from ghealth CLI)
-  └── sink_files.py      (resume-state + write)
-        └── data/raw/<type>/*.ndjson
+  ├── records.py         (encode points as NDJSON)
+  ├── to_bigquery.py     (resume-state + load into BigQuery)
+  │     └── raw.<type>, raw._sync_state   (BigQuery tables)
+  └── run_log.py         (console + file logging)
 ```
