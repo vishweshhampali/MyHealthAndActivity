@@ -1,0 +1,49 @@
+﻿name: ghealth-auth-smoketest
+on:
+  workflow_dispatch: {}
+
+jobs:
+  test-auth:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout ghealth source
+        uses: actions/checkout@v4
+        with:
+          repository: Google-Health-API/google-health-cli
+          path: ghealth-src
+
+      - name: set up go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "stable"
+          cache-dependency-path: ghealth-src/go.sum
+
+      - name: build ghealth
+        working-directory: ghealth-src
+        run: |
+          go build -o ghealth .
+          echo "$PWD" >> $GITHUB_PATH
+
+      - name: restore auth
+        run: |
+          mkdir -p ~/.config/ghealth
+          echo "${{ secrets.GHEALTH_CLIENT_SECRET_B64 }}" | base64 -d > ~/.config/ghealth/client_secret.json
+          echo "${{ secrets.GHEALTH_CREDS_B64 }}" | base64 -d > /tmp/ghealth-creds.json
+          ghealth auth import --file /tmp/ghealth-creds.json
+
+      - name: confirm auth actually works
+        run: ghealth auth status --validate
+
+      - name: pull a tiny slice of real data
+        run: |
+          ghealth data steps daily-rollup \
+            --from $(date -d "2 days ago" +%F) \
+            --to $(date +%F) \
+            --raw --format json | tee /tmp/out.json
+          echo "points returned: $(jq ".dataPoints // .rollupDataPoints | length" /tmp/out.json)"
+
+      - name: check whether the token rotated
+        run: |
+          ghealth auth export > /tmp/creds-after.json
+          diff -q /tmp/ghealth-creds.json /tmp/creds-after.json `
+            && echo "token unchanged" || echo "token rotated -- write-back needed"
