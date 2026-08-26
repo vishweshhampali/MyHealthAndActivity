@@ -44,6 +44,7 @@ jobs:
 
       - name: check whether the refresh token specifically rotated
         run: |
+          ghealth auth export > /tmp/creds-after.json
           before=$(jq -r '.refresh_token' /tmp/ghealth-creds.json)
           after=$(jq -r '.refresh_token' /tmp/creds-after.json)
           if [ "$before" = "$after" ]; then
