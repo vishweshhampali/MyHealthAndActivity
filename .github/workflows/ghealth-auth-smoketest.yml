@@ -42,11 +42,12 @@ jobs:
             --raw --format json | tee /tmp/out.json
           echo "points returned: $(jq ".dataPoints // .rollupDataPoints | length" /tmp/out.json)"
 
-      - name: check whether the token rotated
+      - name: check whether the refresh token specifically rotated
         run: |
-          ghealth auth export > /tmp/creds-after.json
-          if diff -q /tmp/ghealth-creds.json /tmp/creds-after.json > /dev/null; then
-            echo "token unchanged"
+          before=$(jq -r '.refresh_token' /tmp/ghealth-creds.json)
+          after=$(jq -r '.refresh_token' /tmp/creds-after.json)
+          if [ "$before" = "$after" ]; then
+            echo "refresh_token unchanged -- no write-back needed"
           else
-            echo "token rotated -- write-back needed"
+            echo "refresh_token rotated -- write-back needed"
           fi
