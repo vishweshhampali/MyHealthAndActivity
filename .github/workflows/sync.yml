@@ -33,7 +33,7 @@ jobs:
           python-version: "3.12"
 
       - name: install python deps
-        run: pip install -r loader/requirements.txt
+        run: pip install -r fitness-warehouse/requirements.txt
 
       - uses: google-github-actions/auth@v2
         with:
@@ -47,11 +47,11 @@ jobs:
           ghealth auth import --file /tmp/ghealth-creds.json
 
       - name: run loader
-        run: python loader/sync.py
+        run: python fitness-warehouse/loader/sync.py
 
       - name: upload logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: sync-logs
-          path: logs/
+          path: fitness-warehouse/logs/
