@@ -2,11 +2,11 @@
 
 Run from anywhere:  python loader/sync.py
 
-Step 1 of the data-quality pipeline: every run now writes one row to
-raw._pipeline_runs at the end -- success or failure, with duration and (on
-failure) which source broke and why. Nothing else about how this script
-behaves has changed. On failure it still re-raises after logging, so the CI
-step fails exactly as it did before.
+Step 2 of the data-quality pipeline: every data row written to raw.* now carries
+the same run_id as the raw._pipeline_runs row for this run, so a suspicious row
+can be traced straight back to the run that wrote it. error_source is now precise
+to the chunk (source + date range), not just the source. On failure this still
+re-raises after logging, so the CI step fails exactly as it did before.
 """
 import os
 import sys
@@ -29,6 +29,12 @@ today = date.today()
 logger = run_log.setup(os.path.join(ROOT, "logs"))
 
 
+def _run_id():
+    # GITHUB_RUN_ID is stable and unique per Actions run; local runs get a
+    # timestamp-based id so two local test runs are still distinguishable.
+    return os.environ.get("GITHUB_RUN_ID") or f"local-{datetime.now(timezone.utc).strftime('%Y%m%dT%H%M%SZ')}"
+
+
 def _run_url():
     server = os.environ.get("GITHUB_SERVER_URL")
     repo = os.environ.get("GITHUB_REPOSITORY")
@@ -39,6 +45,7 @@ def _run_url():
 
 
 def main():
+    run_id = _run_id()
     run_start = datetime.now()
     log_started_at = datetime.now(timezone.utc).isoformat()
     cfg_start = date.fromisoformat(cfg["backfill_start_date"])
@@ -69,8 +76,9 @@ def main():
             source_chunks = 0
             source_points = 0
             for c0, c1 in chunks(range_start, today, cdays):
+                error_source = f"{dtype} {c0}..{c1}"  # precise to the chunk, not just the source
                 pts = read(dtype, method, c0, c1, window_size=window)
-                ndjson = build_ndjson(dtype, method, pts, point_time)
+                ndjson = build_ndjson(dtype, method, pts, point_time, run_id=run_id)
                 append_points(client, dtype, ndjson)
                 logger.info(f"{dtype:14} {c0}..{c1}: {len(pts):5} -> raw.{dtype.replace('-', '_')}")
                 source_chunks += 1
@@ -100,7 +108,7 @@ def main():
         )
 
         record = {
-            "run_id": os.environ.get("GITHUB_RUN_ID", "local"),
+            "run_id": run_id,
             "workflow": "load",
             "trigger": os.environ.get("GITHUB_EVENT_NAME", "manual"),
             "started_at": log_started_at,
