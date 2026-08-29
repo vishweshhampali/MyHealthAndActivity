@@ -2,7 +2,30 @@ name: sync-and-transform
 on:
   schedule:
     - cron: '0 5 * * *'   # 05:00 UTC daily — GitHub's cron is best-effort, expect some drift
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Manual reload: source to reload (leave blank for a normal sync)'
+        required: false
+        type: choice
+        default: ''
+        options:
+          - ''
+          - steps
+          - distance
+          - floors
+          - active-minutes
+          - active-energy-burned
+          - total-calories
+          - exercise
+      from_date:
+        description: 'Manual reload: from date YYYY-MM-DD (set together with source + to_date)'
+        required: false
+        type: string
+      to_date:
+        description: 'Manual reload: to date YYYY-MM-DD (set together with source + from_date)'
+        required: false
+        type: string
 
 jobs:
   load:
@@ -50,6 +73,10 @@ jobs:
 
       - name: run loader
         run: python fitness-warehouse/loader/sync.py
+        env:
+          RELOAD_SOURCE: ${{ github.event.inputs.source }}
+          RELOAD_FROM: ${{ github.event.inputs.from_date }}
+          RELOAD_TO: ${{ github.event.inputs.to_date }}
 
       - name: upload logs
         if: always()
