@@ -32,8 +32,8 @@ models:
           - not_null
       
       - name: exercise_type
+        description: Type of exercise session covering this minute (e.g. RUNNING, STRENGTH_TRAINING, WALKING), or null if none.
         tests:
-          - not_null
           - relationships:
               to: ref('exercise_category_map')
               field: exercise_type
@@ -72,9 +72,6 @@ models:
           Google Fit resource path identifying the exercise session covering this minute,
           if any. Null when no session covers this minute. When sessions overlap, this
           reflects the higher-priority session (non-passive beats passive).
-
-      - name: exercise_type
-        description: Type of exercise session covering this minute (e.g. RUNNING, STRENGTH_TRAINING, WALKING), or null if none.
 
       - name: recording_method
         description: How the covering exercise session was recorded — PASSIVELY_MEASURED, MANUAL, or ACTIVELY_MEASURED — or null if no session covers this minute.
