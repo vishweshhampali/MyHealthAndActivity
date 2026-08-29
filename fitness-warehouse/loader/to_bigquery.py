@@ -90,3 +90,34 @@ def append_points(client, data_type, ndjson_bytes):
     )
     job = client.load_table_from_file(io.BytesIO(ndjson_bytes), table_id(data_type), job_config=job_config)
     job.result()
+
+
+RUN_LOG_TABLE = f"{PROJECT}.{DATASET}._pipeline_runs"
+
+RUN_LOG_SCHEMA = [
+    bigquery.SchemaField("run_id", "STRING"),
+    bigquery.SchemaField("workflow", "STRING"),
+    bigquery.SchemaField("trigger", "STRING"),
+    bigquery.SchemaField("started_at", "TIMESTAMP"),
+    bigquery.SchemaField("finished_at", "TIMESTAMP"),
+    bigquery.SchemaField("duration_seconds", "FLOAT"),
+    bigquery.SchemaField("status", "STRING"),           # 'success' or 'failure'
+    bigquery.SchemaField("error_source", "STRING"),      # which source broke, if any
+    bigquery.SchemaField("error_message", "STRING"),
+    bigquery.SchemaField("run_url", "STRING"),           # link back to the GitHub Actions run
+    bigquery.SchemaField("details", "JSON"),             # counts: sources completed, chunks, points
+]
+
+
+def write_run_log(client, record: dict):
+    """Append one row to raw._pipeline_runs, creating the table on first use."""
+    row = dict(record)
+    row["details"] = json.dumps(row.get("details") or {})
+    line = json.dumps(row) + "\n"
+    job_config = bigquery.LoadJobConfig(
+        source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
+        schema=RUN_LOG_SCHEMA,
+        write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+    )
+    job = client.load_table_from_file(io.BytesIO(line.encode("utf-8")), RUN_LOG_TABLE, job_config=job_config)
+    job.result()
