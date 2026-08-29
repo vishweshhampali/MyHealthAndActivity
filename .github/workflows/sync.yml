@@ -96,9 +96,18 @@ jobs:
           if [ -f packages.yml ]; then dbt deps; fi
 
       - name: dbt run
+        id: dbt_run
         working-directory: fitness-warehouse/dbt/fitness_warehouse
         run: dbt run
+
+      - name: report dbt run
+        if: always()
+        run: python fitness-warehouse/loader/report_dbt_run.py --workflow dbt_run --results fitness-warehouse/dbt/fitness_warehouse/target/run_results.json
 
       - name: dbt test
         working-directory: fitness-warehouse/dbt/fitness_warehouse
         run: dbt test
+
+      - name: report dbt test
+        if: always() && steps.dbt_run.outcome == 'success'
+        run: python fitness-warehouse/loader/report_dbt_run.py --workflow dbt_test --results fitness-warehouse/dbt/fitness_warehouse/target/run_results.json
