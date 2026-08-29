@@ -1,5 +1,7 @@
 name: sync-and-transform
 on:
+  schedule:
+    - cron: '0 5 * * *'   # 05:00 UTC daily — GitHub's cron is best-effort, expect some drift
   workflow_dispatch: {}
 
 jobs:
@@ -97,5 +99,6 @@ jobs:
         working-directory: fitness-warehouse/dbt/fitness_warehouse
         run: dbt run
 
-      # dbt test intentionally left out of this first CI run — add back in
-      # once `dbt run` is confirmed working end-to-end in this environment
+      - name: dbt test
+        working-directory: fitness-warehouse/dbt/fitness_warehouse
+        run: dbt test
