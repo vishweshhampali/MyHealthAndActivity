@@ -55,3 +55,47 @@ jobs:
         with:
           name: sync-logs
           path: fitness-warehouse/logs/
+
+  dbt:
+    needs: load
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install dbt-bigquery
+
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY }}
+
+      - name: write dbt profile
+        run: |
+          mkdir -p ~/.dbt
+          cat > ~/.dbt/profiles.yml << 'PROFILE'
+          fitness_warehouse:
+            target: dev
+            outputs:
+              dev:
+                type: bigquery
+                method: oauth
+                project: vishactivitytracker
+                dataset: dbt_vish
+                location: US
+                threads: 4
+          PROFILE
+
+      - name: dbt deps (only if packages.yml exists)
+        working-directory: fitness-warehouse/dbt
+        run: |
+          if [ -f packages.yml ]; then dbt deps; fi
+
+      - name: dbt run
+        working-directory: fitness-warehouse/dbt
+        run: dbt run
+
+      # dbt test intentionally left out of this first CI run — add back in
+      # once `dbt run` is confirmed working end-to-end in this environment
