@@ -17,6 +17,7 @@ SCHEMA = [
     bigquery.SchemaField("method", "STRING"),
     bigquery.SchemaField("point_time", "TIMESTAMP"),
     bigquery.SchemaField("ingested_at", "TIMESTAMP"),
+    bigquery.SchemaField("run_id", "STRING"),
     bigquery.SchemaField("payload", "JSON"),
 ]
 
@@ -80,13 +81,18 @@ def write_sync_state(client, data_type, through_date):
 
 
 def append_points(client, data_type, ndjson_bytes):
-    """Append an in-memory NDJSON buffer to raw.<type>, creating the table on first load."""
+    """Append an in-memory NDJSON buffer to raw.<type>, creating the table on first load.
+
+    ALLOW_FIELD_ADDITION lets this add the new run_id column to tables that were
+    created before it existed, without a manual ALTER TABLE first.
+    """
     if not ndjson_bytes:
         return
     job_config = bigquery.LoadJobConfig(
         source_format=bigquery.SourceFormat.NEWLINE_DELIMITED_JSON,
         schema=SCHEMA,
         write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+        schema_update_options=[bigquery.SchemaUpdateOption.ALLOW_FIELD_ADDITION],
     )
     job = client.load_table_from_file(io.BytesIO(ndjson_bytes), table_id(data_type), job_config=job_config)
     job.result()
