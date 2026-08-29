@@ -89,12 +89,12 @@ jobs:
           PROFILE
 
       - name: dbt deps (only if packages.yml exists)
-        working-directory: fitness-warehouse/dbt
+        working-directory: fitness-warehouse/dbt/fitness_warehouse
         run: |
           if [ -f packages.yml ]; then dbt deps; fi
 
       - name: dbt run
-        working-directory: fitness-warehouse/dbt
+        working-directory: fitness-warehouse/dbt/fitness_warehouse
         run: dbt run
 
       # dbt test intentionally left out of this first CI run — add back in
