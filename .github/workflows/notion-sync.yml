@@ -2,7 +2,7 @@ name: Notion Data Layer Sync
 
 on:
   schedule:
-    - cron: '0 1 * * *'   # 01:00 UTC = 06:30 IST
+    - cron: '0 3 * * *'   # 3:00 UTC daily — 2h after sync-and-transform (1:00 UTC) so dbt_vish is fresh
   workflow_dispatch:
     inputs:
       date:
