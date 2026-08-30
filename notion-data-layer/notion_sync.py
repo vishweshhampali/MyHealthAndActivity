@@ -39,6 +39,7 @@ def _build_properties(row: dict, date_str: str) -> dict:
         "Date": {
             "title": [{"text": {"content": date_str}}],
         },
+        "Date (property)": {"date": {"start": date_str}},
         "Trained Today": {"checkbox": bool(row["trained_today"])},
         "Current Streak": num("current_streak_days"),
         "Days Since Last Session": num("days_since_last_session"),
