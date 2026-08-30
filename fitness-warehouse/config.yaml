@@ -1,6 +1,6 @@
 # Only used when a raw.<type> table is empty or missing (first load, or a full reset).
 # Otherwise sync.py resumes from the latest point_time already in BigQuery.
-backfill_start_date: "2026-01-01"
+backfill_start_date: "2026-07-01"
 
 # Methods validated against the live `ghealth schema types` catalog (40 types).
 sources:
