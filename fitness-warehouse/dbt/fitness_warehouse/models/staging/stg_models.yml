@@ -41,20 +41,6 @@ models:
         tests:
           - not_null
 
-  - name: stg_health__floors
-    description: >
-      One row per floors-climbed rollup interval. No floors data has landed yet on this
-      phone-only account, so the payload shape (and this model) is unverified against a real
-      record — see the comment in the model SQL.
-    columns:
-      - name: data_type
-        tests:
-          - accepted_values:
-              values: ["floors"]
-      - name: point_time
-        tests:
-          - not_null
-
   - name: stg_health__active_minutes
     description: >
       One row per activity-level bucket per rollup interval (the source payload nests an array
