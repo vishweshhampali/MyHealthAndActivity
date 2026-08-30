@@ -6,11 +6,13 @@ backfill_start_date: "2026-07-01"
 sources:
   - { type: steps,                method: rollup,       window_size: 60s, chunk_days: 1 }
   - { type: distance,             method: rollup,       window_size: 60s, chunk_days: 1 }
-  - { type: floors,               method: rollup,       window_size: 60s, chunk_days: 1 }   # rollupOnly
   - { type: active-minutes,       method: rollup,       window_size: 60s, chunk_days: 1 }   # rollupOnly
   - { type: active-energy-burned, method: rollup,       window_size: 60s, chunk_days: 1 }   # granular kcal (total-calories is daily-only)
   - { type: total-calories,       method: daily-rollup,                   chunk_days: 14 }   # rollupOnly, daily-only — API caps this type at 14 days/request
   - { type: exercise,             method: list,                           chunk_days: 90 }   # no rollup; list only
+
+# floors removed — always empty on this phone-only account (no floor-counting hardware),
+# and never fed into any downstream dbt model. Removed from dbt at the same time.
 
 # Optional phone-available extras — uncomment to include:
 #  - { type: activity-level,   method: list,         chunk_days: 90 }   # sedentary/light/moderate/vigorous
