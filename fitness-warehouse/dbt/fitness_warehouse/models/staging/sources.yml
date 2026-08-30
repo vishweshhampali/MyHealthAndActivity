@@ -10,7 +10,6 @@ sources:
     tables:
       - name: steps
       - name: distance
-      - name: floors
       - name: active_minutes
       - name: active_energy_burned
       - name: total_calories
