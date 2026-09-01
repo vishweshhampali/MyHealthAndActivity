@@ -1,0 +1,614 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Training Log</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.5.1/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#FFFFFF;
+    --panel:#FFFFFF;
+    --panel-2:#F4F6F8;
+    --ink:#111111;
+    --ink-dim:#6B7280;
+    --border:#111111;
+    --yellow:#F6C445;
+    --yellow-dim:#D9A61E;
+    --sky:#EAF6FC;
+    --blue-panel:#C7E8F5;
+    --healthy:#2F9E56;
+    --cool:#3E7CB1;
+    --hot:#E2542D;
+    --grid-line:#E5E7EB;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:'Inter',sans-serif;}
+  body{padding:0 0 64px 0;}
+
+  .scoreboard{
+    background:var(--sky);
+    border-bottom:2px solid var(--border);
+    padding:22px 20px 18px;
+  }
+  .scoreboard-top{
+    display:flex; justify-content:space-between; align-items:baseline;
+    max-width:1180px; margin:0 auto 14px;
+  }
+  .scoreboard-date{
+    font-family:'JetBrains Mono',monospace; font-size:13px; letter-spacing:0.06em;
+    color:var(--ink-dim); text-transform:uppercase;
+  }
+  .scoreboard-label{
+    font-family:'Space Grotesk',sans-serif; font-size:16px; letter-spacing:0.02em;
+    color:var(--ink); text-transform:uppercase; font-weight:700;
+    border-bottom:3px solid var(--yellow); padding-bottom:3px;
+  }
+  .scoreboard-grid{
+    max-width:1180px; margin:0 auto; display:grid;
+    grid-template-columns:repeat(4,1fr); gap:1px; background:var(--border);
+    border:2px solid var(--border); border-radius:14px; overflow:hidden;
+  }
+  .sb-cell{background:var(--panel); padding:14px 12px; text-align:center; position:relative;}
+  .sb-cell.hero{background:var(--blue-panel); padding-left:24px;}
+  .sb-cell.hero::before{
+    content:''; position:absolute; left:0; top:0; bottom:0; width:9px; background:var(--yellow);
+  }
+  .sb-num{font-family:'Space Grotesk',sans-serif; font-size:32px; font-weight:700; line-height:1; color:var(--ink);}
+  .sb-num.yes{color:var(--healthy);}
+  .sb-num.no{color:var(--ink-dim);}
+  .sb-sub{font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim);
+    text-transform:uppercase; letter-spacing:0.06em; margin-top:6px;}
+
+  .tabs{
+    max-width:1180px; margin:22px auto 0; padding:0 20px;
+    display:flex; gap:2px; border-bottom:2px solid var(--border);
+  }
+  .tab{
+    font-family:'Space Grotesk',sans-serif; font-size:13px; letter-spacing:0.04em; text-transform:uppercase;
+    color:var(--ink-dim); background:none; border:none; padding:12px 16px;
+    cursor:pointer; border-bottom:3px solid transparent; font-weight:600;
+  }
+  .tab.active{color:var(--ink); border-bottom:3px solid var(--yellow);}
+  .tab:focus-visible{outline:2px solid var(--ink); outline-offset:2px;}
+
+  .panel{max-width:1180px; margin:0 auto; padding:26px 20px 0;}
+  .view{display:none;}
+  .view.active{display:block;}
+
+  .section-title{
+    font-family:'Space Grotesk',sans-serif; font-size:12px; letter-spacing:0.08em; text-transform:uppercase;
+    color:var(--ink-dim); margin:0 0 12px;
+  }
+  .card{
+    background:var(--panel); border:2px solid var(--border); border-radius:18px;
+    padding:18px 18px 8px; margin-bottom:22px;
+  }
+  .chart-grid{display:grid; grid-template-columns:1fr; gap:22px; margin-bottom:22px;}
+  .chart-grid .card{margin-bottom:0;}
+  @media (min-width:900px){
+    .chart-grid{grid-template-columns:1fr 1fr;}
+  }
+  .card-title{
+    font-family:'Space Grotesk',sans-serif; font-size:17px; font-weight:700; margin:0 0 2px;
+  }
+  .card-note{
+    font-family:'Inter',sans-serif; font-size:12px; color:var(--ink-dim); margin:0 0 14px;
+  }
+
+  /* 14-day strip */
+  .strip{display:flex; gap:4px; margin-bottom:6px;}
+  .strip-cell{flex:1; height:28px; border-radius:4px; background:var(--panel-2); border:1.5px solid var(--border);}
+  .strip-cell.on{background:var(--yellow); border-color:var(--border);}
+  .strip-labels{display:flex; justify-content:space-between; font-family:'JetBrains Mono',monospace;
+    font-size:9.5px; color:var(--ink-dim); margin-bottom:16px;}
+
+  /* calendar heatmap */
+  #cal-container{display:flex; flex-direction:column; gap:4px;}
+  @media (min-width:900px){
+    #cal-container{flex-direction:row; flex-wrap:wrap; gap:32px;}
+  }
+  .month-block{margin-bottom:20px;}
+  .month-title{font-family:'Space Grotesk',sans-serif; font-size:13px; font-weight:700; color:var(--ink); margin-bottom:8px;}
+  .month-dow{display:grid; grid-template-columns:repeat(7,26px); gap:3px; margin-bottom:4px;}
+  .month-dow span{font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--ink-dim); text-align:center;}
+  .month-grid{display:grid; grid-template-columns:repeat(7,26px); gap:3px;}
+  .cal-cell{aspect-ratio:1; border-radius:3px; background:var(--panel-2); border:1.5px solid var(--border);}
+  .cal-cell.on{background:var(--yellow); border-color:var(--border);}
+  .cal-cell.blank{background:transparent; border:none;}
+  .cal-legend{display:flex; align-items:center; gap:8px; font-family:'JetBrains Mono',monospace;
+    font-size:10.5px; color:var(--ink-dim); margin-bottom:16px;}
+  .legend-swatch{width:12px; height:12px; border-radius:3px; display:inline-block; border:1.5px solid var(--border);}
+
+  canvas{max-width:100%;}
+
+  .mini-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--border);
+    border:2px solid var(--border); border-radius:14px; overflow:hidden; margin-bottom:16px;}
+  .mini-cell{background:var(--panel); padding:14px 10px; text-align:center;}
+  .mini-num{font-family:'Space Grotesk',sans-serif; font-size:26px; font-weight:700; color:var(--ink);}
+  .mini-sub{font-family:'JetBrains Mono',monospace; font-size:9px; color:var(--ink-dim);
+    text-transform:uppercase; letter-spacing:0.04em; margin-top:6px;}
+
+  .balance-bar{display:flex; height:32px; border-radius:6px; overflow:hidden; border:2px solid var(--border); margin-bottom:12px;}
+  .balance-seg{height:100%;}
+  .balance-legend{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim);}
+  .balance-legend span{display:flex; align-items:center; gap:6px;}
+
+  .zone-legend{display:flex; gap:16px; flex-wrap:wrap; margin-bottom:14px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim);}
+  .zone-legend span{display:flex; align-items:center; gap:6px;}
+
+  footer{max-width:1180px; margin:30px auto 0; padding:0 20px;
+    font-family:'JetBrains Mono',monospace; font-size:10.5px; color:var(--ink-dim); text-align:center;}
+
+  @media (max-width:640px){
+    .scoreboard-grid{grid-template-columns:repeat(2,1fr);}
+    .mini-stats{grid-template-columns:1fr;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    *{animation:none !important; transition:none !important;}
+  }
+</style>
+</head>
+<body>
+
+<div class="scoreboard">
+  <div class="scoreboard-top">
+    <span class="scoreboard-label">Training Log</span>
+    <span class="scoreboard-date" id="today-date">—</span>
+  </div>
+  <div class="scoreboard-grid" id="scoreboard-grid"></div>
+</div>
+
+<div class="tabs">
+  <button class="tab active" data-view="overview">Overview</button>
+  <button class="tab" data-view="discipline">Discipline &amp; Consistency</button>
+  <button class="tab" data-view="load">Load &amp; Growth</button>
+</div>
+
+<div class="panel">
+
+  <div class="view active" id="view-overview">
+    <div class="card">
+      <p class="card-title">Last 14 days</p>
+      <p class="card-note">Trained (yellow) vs not, most recent on the right</p>
+      <div class="strip" id="strip14"></div>
+      <div class="strip-labels" id="strip14-labels"></div>
+    </div>
+  </div>
+
+  <div class="view" id="view-discipline">
+    <div class="chart-grid">
+      <div class="card">
+        <p class="card-title">Weekly consistency</p>
+        <p class="card-note">Deliberate days per week (Mon–Sun) against your 5-day target</p>
+        <canvas id="chart-weekly" height="220"></canvas>
+      </div>
+      <div class="card">
+        <p class="card-title">Day-of-week pattern</p>
+        <p class="card-note">Skip rate by weekday — where the leaks actually are</p>
+        <canvas id="chart-dow" height="200"></canvas>
+        <p class="card-note" id="dow-callout"></p>
+      </div>
+    </div>
+    <div class="card">
+      <p class="card-title">Consistency snapshot</p>
+      <p class="card-note">Three angles on the same question — are you actually staying consistent, not just riding a streak</p>
+      <div class="mini-stats" id="mini-stats"></div>
+    </div>
+    <div class="card">
+      <p class="card-title">Monthly pattern</p>
+      <p class="card-note">Last few months with real data, each as its own calendar</p>
+      <div id="cal-container"></div>
+      <div class="cal-legend">
+        <span class="legend-swatch" style="background:var(--panel-2);border:1px solid var(--grid)"></span> not trained
+        <span class="legend-swatch" style="background:var(--healthy)"></span> trained
+      </div>
+    </div>
+  </div>
+
+  <div class="view" id="view-load">
+    <div class="chart-grid">
+      <div class="card">
+        <p class="card-title">ACWR — load ramp</p>
+        <p class="card-note">7-day load vs 28-day load. Shaded band is the smooth-ramp zone (0.8–1.5)</p>
+        <div class="zone-legend">
+          <span><span class="legend-swatch" style="background:var(--hot)"></span> above 1.5 — too fast</span>
+          <span><span class="legend-swatch" style="background:var(--healthy)"></span> 0.8–1.5 — healthy</span>
+          <span><span class="legend-swatch" style="background:var(--cool)"></span> below 0.8 — detraining</span>
+        </div>
+        <canvas id="chart-acwr" height="240"></canvas>
+      </div>
+      <div class="card">
+        <p class="card-title">Distance on running days</p>
+        <p class="card-note">Total daily distance on days you ran — not running-only, since distance isn't tracked separately per category. Non-running days show as zero.</p>
+        <canvas id="chart-run-dist" height="200"></canvas>
+      </div>
+      <div class="card">
+        <p class="card-title">Session count — last 4 weeks</p>
+        <p class="card-note">Total logged sessions per week, across all categories</p>
+        <canvas id="chart-sessions" height="200"></canvas>
+      </div>
+      <div class="card">
+        <p class="card-title">Movement mix — last 4 weeks</p>
+        <p class="card-note">Minutes by category, summed per week</p>
+        <canvas id="chart-mix" height="240"></canvas>
+      </div>
+    </div>
+    <div class="card">
+      <p class="card-title">Category balance</p>
+      <p class="card-note">Share of deliberate minutes by category, last 4 weeks (walking excluded, same as your discipline flag)</p>
+      <div class="balance-bar" id="balance-bar"></div>
+      <div class="balance-legend" id="balance-legend"></div>
+    </div>
+  </div>
+
+</div>
+
+<footer>Generated from your Notion Activity Log · Last updated __GENERATED_AT__</footer>
+
+<script>
+window.addEventListener('load', function() {
+// ---- raw data, verbatim from Notion query (oldest will be sorted client-side) ----
+const RAW = /*__RAW__*/[];
+
+const SESSIONS_BY_DATE = /*__SESSIONS__*/{};
+
+// oldest -> newest
+const TRACKING_START = '2026-07-01'; // nothing before this is real — no exercise tracking existed yet
+const TODAY_STR = new Date().toISOString().slice(0,10); // the sync writes "yesterday" at 2-3am, so today's row (if present at all) is never complete — always exclude it
+const DATA = RAW.slice().reverse().map(r => ({
+  date: r.d,
+  tracked: r.d >= TRACKING_START,
+  trained: r.trained === "__YES__",
+  streak: r.streak,
+  daysSince: r.days_since,
+  weekDays: r.week_days,
+  running: r.running, walking: r.walking, gym: r.gym, sports: r.sports,
+  totalMin: r.total_min, distance: r.distance, sessions: SESSIONS_BY_DATE[r.d] ?? 0,
+  min7: r.min7, min28: r.min28, acwr: r.acwr
+})).filter(d => d.date !== TODAY_STR);
+const TRACKED = DATA.filter(d => d.tracked);
+
+const latest = DATA[DATA.length - 1];
+function addDays(dateStr, n){
+  const d = new Date(dateStr + 'T00:00:00');
+  d.setDate(d.getDate() + n);
+  return d.toISOString().slice(0,10);
+}
+const REAL_YESTERDAY = addDays(TODAY_STR, -1);
+const trainedLabel = latest.date === REAL_YESTERDAY ? 'Trained Yesterday?' : `Trained (${latest.date.slice(5)})?`;
+const INK = '#111111', INK_DIM = '#6B7280', GRIDLINE = '#E5E7EB',
+      YELLOW = '#F6C445', HEALTHY = '#2F9E56', COOL = '#3E7CB1', HOT = '#E2542D';
+
+Chart.defaults.color = INK_DIM;
+Chart.defaults.font.family = "'Inter', sans-serif";
+Chart.defaults.font.size = 11;
+
+// ---- scoreboard ----
+document.getElementById('today-date').textContent = 'As of ' + latest.date;
+const sbGrid = document.getElementById('scoreboard-grid');
+const sbItems = [
+  {label: trainedLabel, val: latest.trained ? 'YES' : 'NO', cls: latest.trained ? 'yes' : 'no'},
+  {label:'This Week', val: `${latest.weekDays}/5`, cls:''},
+  {label:'Days Since Last', val: latest.daysSince ?? '—', cls:''},
+  {label:'ACWR', val: latest.acwr != null ? latest.acwr.toFixed(2) : '—', cls:'', hero:true}
+];
+sbItems.forEach(it => {
+  const cell = document.createElement('div');
+  cell.className = 'sb-cell' + (it.hero ? ' hero' : '');
+  cell.innerHTML = `<div class="sb-num ${it.cls}">${it.val}</div><div class="sb-sub">${it.label}</div>`;
+  sbGrid.appendChild(cell);
+});
+
+// ---- tabs ----
+document.querySelectorAll('.tab').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-' + btn.dataset.view).classList.add('active');
+  });
+});
+
+// ---- 14 day strip ----
+const last14 = DATA.slice(-14);
+const strip = document.getElementById('strip14');
+last14.forEach(d => {
+  const c = document.createElement('div');
+  c.className = 'strip-cell' + (d.trained ? ' on' : '');
+  c.title = d.date;
+  strip.appendChild(c);
+});
+document.getElementById('strip14-labels').innerHTML =
+  `<span>${last14[0].date.slice(5)}</span><span>${last14[last14.length-1].date.slice(5)} (latest)</span>`;
+
+// ---- weekly consistency ----
+function mondayOf(dateStr){
+  const d = new Date(dateStr + 'T00:00:00');
+  const day = (d.getDay() + 6) % 7; // 0=Mon
+  d.setDate(d.getDate() - day);
+  return d.toISOString().slice(0,10);
+}
+const weekMap = new Map();
+TRACKED.forEach(d => {
+  const wk = mondayOf(d.date);
+  const cur = weekMap.get(wk) || 0;
+  weekMap.set(wk, Math.max(cur, d.weekDays));
+});
+const allWeeks = Array.from(weekMap.entries());
+const weeks = allWeeks.slice(-4);
+
+new Chart(document.getElementById('chart-weekly'), {
+  type:'bar',
+  data:{
+    labels: weeks.map(([wk]) => wk.slice(5)),
+    datasets:[
+      {label:'Deliberate days', data: weeks.map(([,v]) => v), backgroundColor: YELLOW, borderColor: INK, borderWidth:2, borderRadius:4, barThickness:18},
+      {label:'Target (5)', data: weeks.map(()=>5), type:'line', borderColor:INK_DIM, borderDash:[4,4],
+       pointRadius:0, borderWidth:1.5}
+    ]
+  },
+  options:{
+    plugins:{legend:{labels:{boxWidth:10, color:INK_DIM}}},
+    scales:{
+      y:{beginAtZero:true, max:7, grid:{color:GRIDLINE}, ticks:{stepSize:1}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+
+// ---- consistency snapshot: 30-day adherence, weekly target streak, bounce-back time ----
+const last30 = TRACKED.slice(-30);
+const adherence30 = last30.length ? Math.round(100 * last30.filter(d=>d.trained).length / last30.length) : null;
+
+const completedWeeks = allWeeks.filter(([wk]) => addDays(wk,6) <= latest.date);
+let weeklyStreak = 0;
+for (let i = completedWeeks.length - 1; i >= 0; i--){
+  if (completedWeeks[i][1] >= 5) weeklyStreak++;
+  else break;
+}
+
+let missRun = 0;
+const gaps = [];
+TRACKED.forEach(d => {
+  if (!d.trained) { missRun++; }
+  else { if (missRun > 0) gaps.push(missRun); missRun = 0; }
+});
+const avgBounceBack = gaps.length ? (gaps.reduce((a,b)=>a+b,0)/gaps.length).toFixed(1) : null;
+
+document.getElementById('mini-stats').innerHTML = [
+  {num: adherence30 != null ? adherence30 + '%' : '—', sub:'30-day adherence'},
+  {num: weeklyStreak, sub:'weeks hitting target'},
+  {num: avgBounceBack != null ? avgBounceBack : '—', sub:'avg days to bounce back'}
+].map(it => `<div class="mini-cell"><div class="mini-num">${it.num}</div><div class="mini-sub">${it.sub}</div></div>`).join('');
+
+// ---- day-of-week skip pattern ----
+const dowCounts = [0,0,0,0,0,0,0];
+const dowSkips = [0,0,0,0,0,0,0];
+TRACKED.forEach(d => {
+  const dow = (new Date(d.date + 'T00:00:00').getDay() + 6) % 7; // Monday = 0
+  dowCounts[dow]++;
+  if (!d.trained) dowSkips[dow]++;
+});
+const dowLabels = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+const dowRates = dowCounts.map((c,i) => c ? Math.round(100 * dowSkips[i] / c) : 0);
+const worstIdx = dowRates.indexOf(Math.max(...dowRates));
+
+new Chart(document.getElementById('chart-dow'), {
+  type:'bar',
+  data:{
+    labels: dowLabels,
+    datasets:[{
+      label:'Skip rate', data: dowRates,
+      backgroundColor: dowLabels.map((_,i) => i === worstIdx ? HOT : YELLOW),
+      borderColor: INK, borderWidth:2, borderRadius:4
+    }]
+  },
+  options:{
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{beginAtZero:true, max:100, grid:{color:GRIDLINE}, ticks:{callback:v=>v+'%'}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+document.getElementById('dow-callout').textContent = dowCounts[worstIdx]
+  ? `You skip training most often on ${dowLabels[worstIdx]}s — ${dowRates[worstIdx]}% of the time.`
+  : '';
+
+// ---- calendar: last few months, each its own real calendar grid ----
+function monthKey(dateStr){ return dateStr.slice(0,7); }
+function monthLabel(key){
+  const [y,m] = key.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleString('en-US',{month:'long', year:'numeric'});
+}
+const monthGroups = new Map();
+TRACKED.forEach(d => {
+  const k = monthKey(d.date);
+  if (!monthGroups.has(k)) monthGroups.set(k, []);
+  monthGroups.get(k).push(d);
+});
+const monthKeys = Array.from(monthGroups.keys()).slice(-3);
+const calContainer = document.getElementById('cal-container');
+
+monthKeys.forEach(key => {
+  const days = monthGroups.get(key);
+  const [y, m] = key.split('-').map(Number);
+  const leadOffset = (new Date(y, m-1, 1).getDay() + 6) % 7; // Monday-first offset
+
+  const block = document.createElement('div');
+  block.className = 'month-block';
+
+  const title = document.createElement('div');
+  title.className = 'month-title';
+  title.textContent = monthLabel(key);
+  block.appendChild(title);
+
+  const dow = document.createElement('div');
+  dow.className = 'month-dow';
+  ['M','T','W','T','F','S','S'].forEach(l => {
+    const s = document.createElement('span'); s.textContent = l; dow.appendChild(s);
+  });
+  block.appendChild(dow);
+
+  const grid = document.createElement('div');
+  grid.className = 'month-grid';
+  for (let i = 0; i < leadOffset; i++) {
+    const blank = document.createElement('div');
+    blank.className = 'cal-cell blank';
+    grid.appendChild(blank);
+  }
+  days.forEach(d => {
+    const c = document.createElement('div');
+    c.className = 'cal-cell' + (d.trained ? ' on' : '');
+    c.title = `${d.date}: ${d.trained ? 'trained' : 'rest'}`;
+    grid.appendChild(c);
+  });
+  block.appendChild(grid);
+  calContainer.appendChild(block);
+});
+
+// ---- ACWR chart with zone shading ----
+const zoneBandPlugin = {
+  id:'zoneBand',
+  beforeDatasetsDraw(chart){
+    const {ctx, chartArea:{left,right}, scales:{y}} = chart;
+    if(!y) return;
+    ctx.save();
+    const yTop = y.getPixelForValue(1.5);
+    const yMid = y.getPixelForValue(0.8);
+    ctx.fillStyle = 'rgba(47,158,86,0.12)';
+    ctx.fillRect(left, yTop, right-left, yMid-yTop);
+    ctx.restore();
+  }
+};
+const acwrData = TRACKED.filter(d => d.acwr != null).slice(-28);
+new Chart(document.getElementById('chart-acwr'), {
+  type:'line',
+  data:{
+    labels: acwrData.map(d => d.date.slice(5)),
+    datasets:[{
+      label:'ACWR', data: acwrData.map(d => d.acwr),
+      borderColor: INK, borderWidth:2, tension:0.25, pointRadius:3, pointBorderWidth:1.5, pointBorderColor: INK,
+      pointBackgroundColor: acwrData.map(d => d.acwr > 1.5 ? HOT : d.acwr < 0.8 ? COOL : HEALTHY),
+      fill:false
+    }]
+  },
+  plugins:[zoneBandPlugin],
+  options:{
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{grid:{color:GRIDLINE}},
+      x:{grid:{display:false}, ticks:{maxTicksLimit:10}}
+    }
+  }
+});
+
+// ---- distance on running days, last 4 weeks ----
+const last28 = TRACKED.slice(-28);
+new Chart(document.getElementById('chart-run-dist'), {
+  type:'bar',
+  data:{
+    labels: last28.map(d => d.date.slice(5)),
+    datasets:[{
+      label:'Distance (km)', data: last28.map(d => d.running > 0 ? d.distance : 0),
+      backgroundColor: YELLOW, borderColor: INK, borderWidth:1.5, borderRadius:3
+    }]
+  },
+  options:{
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{beginAtZero:true, grid:{color:GRIDLINE}},
+      x:{grid:{display:false}, ticks:{maxTicksLimit:10}}
+    }
+  }
+});
+
+// ---- session count per week, last 4 weeks ----
+const sessionWeekMap = new Map();
+TRACKED.forEach(d => {
+  const wk = mondayOf(d.date);
+  sessionWeekMap.set(wk, (sessionWeekMap.get(wk) || 0) + d.sessions);
+});
+const sessionWeeks = Array.from(sessionWeekMap.entries()).slice(-4);
+new Chart(document.getElementById('chart-sessions'), {
+  type:'bar',
+  data:{
+    labels: sessionWeeks.map(([wk]) => wk.slice(5)),
+    datasets:[{
+      label:'Sessions', data: sessionWeeks.map(([,v]) => v),
+      backgroundColor: COOL, borderColor: INK, borderWidth:1.5, borderRadius:4, barThickness:28
+    }]
+  },
+  options:{
+    plugins:{legend:{display:false}},
+    scales:{
+      y:{beginAtZero:true, grid:{color:GRIDLINE}, ticks:{stepSize:1}},
+      x:{grid:{display:false}}
+    }
+  }
+});
+
+// ---- category balance, last 4 weeks ----
+const balanceTotals = last28.reduce((acc,d) => {
+  acc.running += d.running; acc.gym += d.gym; acc.sports += d.sports;
+  return acc;
+}, {running:0, gym:0, sports:0});
+const balanceSum = balanceTotals.running + balanceTotals.gym + balanceTotals.sports;
+const balanceParts = [
+  {label:'Running', val: balanceTotals.running, color: YELLOW},
+  {label:'Gym', val: balanceTotals.gym, color: HEALTHY},
+  {label:'Sports', val: balanceTotals.sports, color: COOL}
+];
+const barEl = document.getElementById('balance-bar');
+const legendEl = document.getElementById('balance-legend');
+if (balanceSum === 0) {
+  barEl.innerHTML = `<div class="balance-seg" style="width:100%;background:var(--panel-2)"></div>`;
+  legendEl.textContent = 'No running, gym, or sports minutes in the last 4 weeks.';
+} else {
+  balanceParts.forEach(p => {
+    const pct = Math.round(100 * p.val / balanceSum);
+    if (pct > 0) {
+      barEl.innerHTML += `<div class="balance-seg" style="width:${pct}%;background:${p.color}"></div>`;
+    }
+    legendEl.innerHTML += `<span><span class="legend-swatch" style="background:${p.color}"></span>${p.label} ${pct}%</span>`;
+  });
+}
+
+// ---- movement mix, last 4 weeks ----
+const mixMap = new Map();
+TRACKED.forEach(d => {
+  const wk = mondayOf(d.date);
+  const cur = mixMap.get(wk) || {running:0,walking:0,gym:0,sports:0};
+  cur.running += d.running; cur.walking += d.walking; cur.gym += d.gym; cur.sports += d.sports;
+  mixMap.set(wk, cur);
+});
+const mixWeeks = Array.from(mixMap.entries()).slice(-4);
+new Chart(document.getElementById('chart-mix'), {
+  type:'bar',
+  data:{
+    labels: mixWeeks.map(([wk]) => wk.slice(5)),
+    datasets:[
+      {label:'Running', data: mixWeeks.map(([,v])=>v.running), backgroundColor:YELLOW},
+      {label:'Walking', data: mixWeeks.map(([,v])=>v.walking), backgroundColor:'#C9A876'},
+      {label:'Gym', data: mixWeeks.map(([,v])=>v.gym), backgroundColor:HEALTHY},
+      {label:'Sports', data: mixWeeks.map(([,v])=>v.sports), backgroundColor:COOL}
+    ]
+  },
+  options:{
+    plugins:{legend:{labels:{boxWidth:10,color:INK_DIM}}},
+    scales:{
+      y:{stacked:true, grid:{color:GRIDLINE}},
+      x:{stacked:true, grid:{display:false}}
+    }
+  }
+});
+
+}); // end window load listener
+</script>
+</body>
+</html>
