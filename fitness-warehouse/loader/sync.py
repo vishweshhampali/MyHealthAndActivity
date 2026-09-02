@@ -115,6 +115,12 @@ def main():
             error_source = None  # made it through cleanly
 
         else:
+            # Only ever sync fully-elapsed calendar days — never "today," which is
+            # still accumulating sensor data at whatever time the cron happens to
+            # fire. write_sync_state() marks a date permanently done, so syncing a
+            # still-live "today" would lock in a partial-day undercount forever.
+            sync_through = today - timedelta(days=1)
+
             for s in cfg["sources"]:
                 dtype, method = s["type"], s["method"]
                 error_source = dtype  # if we die below, this is where we were
@@ -124,16 +130,16 @@ def main():
                 last = max(candidates) if candidates else None
                 range_start = last + timedelta(days=1) if last else cfg_start
 
-                if range_start > today:
+                if range_start > sync_through:
                     logger.info(f"{dtype:14} up to date")
                     sources_completed += 1
                     continue
 
-                logger.info(f"{dtype:14} range to fill: {range_start}..{today}")
+                logger.info(f"{dtype:14} range to fill: {range_start}..{sync_through}")
 
                 source_chunks = 0
                 source_points = 0
-                for c0, c1 in chunks(range_start, today, cdays):
+                for c0, c1 in chunks(range_start, sync_through, cdays):
                     error_source = f"{dtype} {c0}..{c1}"  # precise to the chunk, not just the source
                     pts = read(dtype, method, c0, c1, window_size=window)
                     ndjson = build_ndjson(dtype, method, pts, point_time, run_id=run_id)
@@ -144,7 +150,7 @@ def main():
 
                 # Record progress once per source (not per chunk) — the state table is tiny and this
                 # is a full rewrite (load-job based; DML is blocked on this project's free tier).
-                write_sync_state(client, dtype, today)
+                write_sync_state(client, dtype, sync_through)
 
                 logger.info(f"{dtype:14} done: {source_chunks} chunks, {source_points} points")
                 total_chunks += source_chunks
