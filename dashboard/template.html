@@ -204,8 +204,8 @@
       <p class="card-note">Last few months with real data, each as its own calendar</p>
       <div id="cal-container"></div>
       <div class="cal-legend">
-        <span class="legend-swatch" style="background:var(--panel-2);border:1px solid var(--grid)"></span> not trained
-        <span class="legend-swatch" style="background:var(--healthy)"></span> trained
+        <span class="legend-swatch" style="background:var(--panel-2)"></span> not trained
+        <span class="legend-swatch" style="background:var(--yellow)"></span> trained
       </div>
     </div>
   </div>
@@ -259,7 +259,7 @@ const SESSIONS_BY_DATE = /*__SESSIONS__*/{};
 
 // oldest -> newest
 const TRACKING_START = '2026-07-01'; // nothing before this is real — no exercise tracking existed yet
-const TODAY_STR = new Date().toISOString().slice(0,10); // the sync writes "yesterday" at 2-3am, so today's row (if present at all) is never complete — always exclude it
+const TODAY_STR = (function(){ const n = new Date(); return `${n.getFullYear()}-${String(n.getMonth()+1).padStart(2,'0')}-${String(n.getDate()).padStart(2,'0')}`; })(); // the sync writes "yesterday" at 2-3am, so today's row (if present at all) is never complete — always exclude it
 const DATA = RAW.slice().reverse().map(r => ({
   date: r.d,
   tracked: r.d >= TRACKING_START,
@@ -275,8 +275,8 @@ const TRACKED = DATA.filter(d => d.tracked);
 
 const latest = DATA[DATA.length - 1];
 function addDays(dateStr, n){
-  const d = new Date(dateStr + 'T00:00:00');
-  d.setDate(d.getDate() + n);
+  const d = new Date(dateStr + 'T00:00:00Z');
+  d.setUTCDate(d.getUTCDate() + n);
   return d.toISOString().slice(0,10);
 }
 const REAL_YESTERDAY = addDays(TODAY_STR, -1);
@@ -328,16 +328,18 @@ document.getElementById('strip14-labels').innerHTML =
 
 // ---- weekly consistency ----
 function mondayOf(dateStr){
-  const d = new Date(dateStr + 'T00:00:00');
-  const day = (d.getDay() + 6) % 7; // 0=Mon
-  d.setDate(d.getDate() - day);
+  // parse as UTC and do the arithmetic in UTC — using local time here shifts the
+  // result a day in any timezone east of Greenwich once toISOString() converts back
+  const d = new Date(dateStr + 'T00:00:00Z');
+  const day = (d.getUTCDay() + 6) % 7; // 0=Mon
+  d.setUTCDate(d.getUTCDate() - day);
   return d.toISOString().slice(0,10);
 }
 const weekMap = new Map();
 TRACKED.forEach(d => {
   const wk = mondayOf(d.date);
-  const cur = weekMap.get(wk) || 0;
-  weekMap.set(wk, Math.max(cur, d.weekDays));
+  // count trained days directly so this can never disagree with the calendar below
+  weekMap.set(wk, (weekMap.get(wk) || 0) + (d.trained ? 1 : 0));
 });
 const allWeeks = Array.from(weekMap.entries());
 const weeks = allWeeks.slice(-4);
@@ -390,7 +392,7 @@ document.getElementById('mini-stats').innerHTML = [
 const dowCounts = [0,0,0,0,0,0,0];
 const dowSkips = [0,0,0,0,0,0,0];
 TRACKED.forEach(d => {
-  const dow = (new Date(d.date + 'T00:00:00').getDay() + 6) % 7; // Monday = 0
+  const dow = (new Date(d.date + 'T00:00:00Z').getUTCDay() + 6) % 7; // Monday = 0
   dowCounts[dow]++;
   if (!d.trained) dowSkips[dow]++;
 });
@@ -424,7 +426,7 @@ document.getElementById('dow-callout').textContent = dowCounts[worstIdx]
 function monthKey(dateStr){ return dateStr.slice(0,7); }
 function monthLabel(key){
   const [y,m] = key.split('-').map(Number);
-  return new Date(y, m-1, 1).toLocaleString('en-US',{month:'long', year:'numeric'});
+  return new Date(Date.UTC(y, m-1, 1)).toLocaleString('en-US',{month:'long', year:'numeric', timeZone:'UTC'});
 }
 const monthGroups = new Map();
 TRACKED.forEach(d => {
@@ -438,7 +440,7 @@ const calContainer = document.getElementById('cal-container');
 monthKeys.forEach(key => {
   const days = monthGroups.get(key);
   const [y, m] = key.split('-').map(Number);
-  const leadOffset = (new Date(y, m-1, 1).getDay() + 6) % 7; // Monday-first offset
+  const leadOffset = (new Date(Date.UTC(y, m-1, 1)).getUTCDay() + 6) % 7; // Monday-first offset
 
   const block = document.createElement('div');
   block.className = 'month-block';
