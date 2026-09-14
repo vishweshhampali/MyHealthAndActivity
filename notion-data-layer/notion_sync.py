@@ -78,3 +78,30 @@ def upsert_day(token: str, database_id: str, row: dict):
         )
     _raise_with_body(resp)
     return resp.json()
+
+
+def latest_synced_date(token: str, database_id: str):
+    """Most recent date already present in Notion, or None if the database is empty.
+
+    Sorts by the real Date property rather than the title text, so it stays correct
+    regardless of how the title happens to be formatted.
+    """
+    from datetime import date as _date
+
+    resp = requests.post(
+        f"{NOTION_API}/databases/{database_id}/query",
+        headers=_headers(token),
+        json={
+            "sorts": [{"property": "Date (property)", "direction": "descending"}],
+            "page_size": 1,
+        },
+        timeout=15,
+    )
+    _raise_with_body(resp)
+    results = resp.json().get("results", [])
+    if not results:
+        return None
+
+    prop = (results[0].get("properties", {}).get("Date (property)") or {})
+    start = (prop.get("date") or {}).get("start")
+    return _date.fromisoformat(start[:10]) if start else None
