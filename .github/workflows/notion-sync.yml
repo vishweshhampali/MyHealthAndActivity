@@ -1,8 +1,12 @@
 name: Notion Data Layer Sync
 
 on:
-  schedule:
-    - cron: '0 3 * * *'   # 3:00 UTC daily — 2h after sync-and-transform (1:00 UTC) so dbt_vish is fresh
+  # Chained to the loader, NOT on its own cron. If the ghealth load or dbt run fails,
+  # fct_activity_daily is stale — syncing then would write zeros into Notion for days
+  # that simply have no data yet. Running only on success makes the failure propagate.
+  workflow_run:
+    workflows: ["REPLACE_WITH_LOADER_WORKFLOW_NAME"]
+    types: [completed]
   workflow_dispatch:
     inputs:
       date:
@@ -17,6 +21,8 @@ on:
 
 jobs:
   sync:
+    # never sync off the back of a failed load/transform
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     concurrency:
       group: notion-data-layer-sync
