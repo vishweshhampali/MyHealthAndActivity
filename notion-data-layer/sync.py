@@ -5,7 +5,7 @@ from datetime import date, timedelta
 from google.cloud import bigquery
 
 from digest_query import DIGEST_SQL
-from notion_sync import upsert_day
+from notion_sync import upsert_day, latest_synced_date
 
 GCP_PROJECT = os.environ["GCP_PROJECT"]
 NOTION_DATABASE_ID = os.environ["NOTION_DATABASE_ID"]
@@ -47,10 +47,40 @@ def main():
             time.sleep(0.4)  # stay comfortably under Notion's rate limit
         return
 
-    # Normal mode: a single day (defaults to "yesterday")
+    # Explicit single day, if asked for
     date_str = os.environ.get("SYNC_DATE", "").strip()
-    landing_date = date.fromisoformat(date_str) if date_str else date.today() - timedelta(days=1)
-    _sync_one(landing_date)
+    if date_str:
+        _sync_one(date.fromisoformat(date_str))
+        return
+
+    # Scheduled mode: sync forward from whatever Notion already has.
+    # Normally that is exactly one day. If the loader was down for a stretch, the
+    # sync did not run either, so those days are absent from Notion — this catches
+    # them up in one pass rather than leaving holes that misalign the calendar.
+    end = date.today() - timedelta(days=1)
+    latest = latest_synced_date(NOTION_TOKEN, NOTION_DATABASE_ID)
+
+    if latest is None:
+        print("Notion is empty — run a backfill with start_date/end_date first.")
+        return
+
+    start = latest + timedelta(days=1)
+    if start > end:
+        print(f"already up to date through {latest.isoformat()}")
+        return
+
+    max_catchup = int(os.environ.get("MAX_CATCHUP_DAYS", "60"))
+    if (end - start).days + 1 > max_catchup:
+        raise SystemExit(
+            f"gap of {(end - start).days + 1} days exceeds MAX_CATCHUP_DAYS={max_catchup}. "
+            "Run an explicit backfill instead."
+        )
+
+    current = start
+    while current <= end:
+        _sync_one(current)
+        current += timedelta(days=1)
+        time.sleep(0.4)
 
 
 if __name__ == "__main__":
