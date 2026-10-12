@@ -293,7 +293,7 @@ document.getElementById('today-date').textContent = 'As of ' + latest.date;
 const sbGrid = document.getElementById('scoreboard-grid');
 const sbItems = [
   {label: trainedLabel, val: latest.trained ? 'YES' : 'NO', cls: latest.trained ? 'yes' : 'no'},
-  {label:'This Week', val: `${latest.weekDays}/5`, cls:''},
+  {label:'Last Week', val: `${latest.weekDays}/5`, cls:''},
   {label:'Days Since Last', val: latest.daysSince ?? '—', cls:''},
   {label:'ACWR', val: latest.acwr != null ? latest.acwr.toFixed(2) : '—', cls:'', hero:true}
 ];
